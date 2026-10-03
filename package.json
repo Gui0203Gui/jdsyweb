@@ -9,7 +9,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"dev:cf": "npm run build && wrangler pages dev .svelte-kit/cloudflare --port 8788",
-		"build": "wrangler types --check && vite build",
+		"build": "vite build",
 		"preview": "wrangler pages dev .svelte-kit/cloudflare --port 4173",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "wrangler types --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
