@@ -1,10 +1,11 @@
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
+import { env } from 'cloudflare:workers';
 import { getDb } from '#lib/server/db';
 import { getSessionUser, purgeExpiredSessions, SESSION_COOKIE } from '#lib/server/auth';
 
 export const handle: Handle = async ({ event, resolve }) => {
-	// 注入 D1 数据库（Cloudflare Pages + Workers 运行时）
-	const d1 = event.platform?.env.DB;
+	// 注入 D1 数据库（adapter-cloudflare 通过 cloudflare:workers 提供绑定）
+	const d1 = env.DB;
 	if (!d1) {
 		// 纯 vite dev（无 Cloudflare 运行时）时给出明确指引
 		throw new Error('未检测到 D1 数据库环境。请在完整 Cloudflare 环境下运行：npm run dev:cf');
