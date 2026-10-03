@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import { enhance } from '$app/forms';
+	import { avatarUrl } from '#lib/avatar';
 
 	let { data, form }: PageProps = $props();
 
@@ -44,9 +45,18 @@
 				<tr>
 					<td>
 						<a href={`/user/${u.username}`}>
-							<span class="avatar" style="width:22px;height:22px;font-size:12px;margin-right:6px;">
-								{u.avatar || '👤'}
-							</span>
+							{#if avatarUrl(u.avatar)}
+								<span
+									class="avatar"
+									style="width:22px;height:22px;font-size:12px;margin-right:6px;"
+								>
+									<img src={avatarUrl(u.avatar)} alt={u.username} />
+								</span>
+							{:else}
+								<span class="avatar" style="width:22px;height:22px;font-size:12px;margin-right:6px;"
+									>👤</span
+								>
+							{/if}
 							{u.username}
 						</a>
 					</td>

@@ -2,6 +2,7 @@
 	import type { PageProps } from './$types';
 	import { formatDateTime } from '#lib/time';
 	import { enhance } from '$app/forms';
+	import { avatarUrl } from '#lib/avatar';
 
 	let { data, form }: PageProps = $props();
 	let replyText = $state('');
@@ -52,7 +53,16 @@
 		</div>
 		<h1 class="post-detail-title">{data.post.title}</h1>
 		<div class="post-meta">
-			<span>{data.author.avatar || '👤'} {data.author.username}</span>
+			{#if avatarUrl(data.author.avatar)}
+				<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+					><img src={avatarUrl(data.author.avatar)} alt={data.author.username} /></span
+				>
+			{:else}
+				<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+					>👤</span
+				>
+			{/if}
+			<span>{data.author.username}</span>
 			<span>·</span>
 			<span>⭐ {data.author.points} 积分</span>
 			<span>·</span>
@@ -105,10 +115,16 @@
 	{#each data.comments as item, i (item.comment.id)}
 		<div class="comment">
 			<div class="comment-head">
-				<span
-					>{item.author.avatar || '👤'} <strong>{item.author.username}</strong> ⭐{item.author
-						.points}</span
-				>
+				{#if avatarUrl(item.author.avatar)}
+					<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+						><img src={avatarUrl(item.author.avatar)} alt={item.author.username} /></span
+					>
+				{:else}
+					<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+						>👤</span
+					>
+				{/if}
+				<span><strong>{item.author.username}</strong> ⭐{item.author.points}</span>
 				<span class="comment-floor">#{i + 1}楼</span>
 				<span class="comment-floor">{formatDateTime(item.comment.createdAt)}</span>
 			</div>

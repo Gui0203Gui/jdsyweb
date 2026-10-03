@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import { formatDateTime } from '#lib/time';
+	import { avatarUrl } from '#lib/avatar';
 
 	let { data }: PageProps = $props();
 	let showPreview = $state(true);
@@ -22,7 +23,16 @@
 	<header class="post-detail-header">
 		<h1 class="post-detail-title">🖼️ {data.work.title}</h1>
 		<div class="post-meta">
-			<span>{data.author.avatar || '👤'} {data.author.username} ⭐{data.author.points}</span>
+			{#if avatarUrl(data.author.avatar)}
+				<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+					><img src={avatarUrl(data.author.avatar)} alt={data.author.username} /></span
+				>
+			{:else}
+				<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+					>👤</span
+				>
+			{/if}
+			<span>{data.author.username} ⭐{data.author.points}</span>
 			<span>·</span>
 			<span>📄 {data.work.fileName}</span>
 			<span>·</span>

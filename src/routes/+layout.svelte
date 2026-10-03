@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import { avatarUrl } from '#lib/avatar';
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
 
@@ -61,7 +62,13 @@
 						class="user-chip"
 						title={`${data.user.username}（${data.user.role === 'admin' ? '管理员' : '吧友'}）`}
 					>
-						<span class="avatar">{data.user.avatar || '👤'}</span>
+						{#if avatarUrl(data.user.avatar)}
+							<span class="avatar"
+								><img src={avatarUrl(data.user.avatar)} alt={data.user.username} /></span
+							>
+						{:else}
+							<span class="avatar">👤</span>
+						{/if}
 						{data.user.username}
 						<span class="points-chip">⭐ {data.user.points}</span>
 					</a>

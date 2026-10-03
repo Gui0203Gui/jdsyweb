@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { formatRelativeTime } from '#lib/time';
+	import { avatarUrl } from '#lib/avatar';
 
 	let { data }: { data: PageData } = $props();
 </script>
@@ -41,7 +42,16 @@
 					<a href={`/post/${item.post.id}`} class="post-title">{item.post.title}</a>
 				</div>
 				<div class="post-meta">
-					<span>{item.author.avatar || '👤'} {item.author.username} ⭐{item.author.points}</span>
+					{#if avatarUrl(item.author.avatar)}
+						<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+							><img src={avatarUrl(item.author.avatar)} alt={item.author.username} /></span
+						>
+					{:else}
+						<span class="avatar" style="width:20px;height:20px;font-size:12px;vertical-align:-4px;"
+							>👤</span
+						>
+					{/if}
+					<span>{item.author.username} ⭐{item.author.points}</span>
 					<span>·</span>
 					<span>{formatRelativeTime(item.post.createdAt)}</span>
 					<span>·</span>
