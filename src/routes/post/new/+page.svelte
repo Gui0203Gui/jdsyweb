@@ -13,7 +13,7 @@
 		const files = Array.from(input.files ?? []);
 		if (files.length === 0) return;
 
-		const remaining = 9 - imageKeys.length;
+		const remaining = 50 - imageKeys.length;
 		if (files.length > remaining) {
 			uploadError = `最多还能上传 ${remaining} 张图片`;
 			input.value = '';
@@ -105,14 +105,14 @@
 		</div>
 
 		<div class="form-group">
-			<label class="form-label" for="images">图片（可选，最多 9 张，单张 ≤ 5MB）</label>
+			<label class="form-label" for="images">图片（可选，最多 50 张，单张 ≤ 5MB）</label>
 			<input
 				type="file"
 				id="images"
 				accept="image/jpeg,image/png,image/gif,image/webp"
 				multiple
 				onchange={handleFiles}
-				disabled={uploading || imageKeys.length >= 9}
+				disabled={uploading || imageKeys.length >= 50}
 			/>
 			{#if uploading}
 				<p class="form-hint">上传中……</p>

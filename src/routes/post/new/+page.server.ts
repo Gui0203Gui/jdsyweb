@@ -34,7 +34,7 @@ export const actions: Actions = {
 		if (title.length > 80) return fail(400, { error: '标题过长（最多 80 字）' });
 		if (!content) return fail(400, { error: '内容不能为空' });
 		if (content.length > 20000) return fail(400, { error: '内容过长（最多 20000 字）' });
-		if (images.length > 9) return fail(400, { error: '图片最多 9 张' });
+		if (images.length > 50) return fail(400, { error: '图片最多 50 张' });
 
 		const inserted = await locals.db
 			.insert(posts)
