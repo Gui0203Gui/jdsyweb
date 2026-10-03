@@ -3,8 +3,6 @@ import type { Actions, PageServerLoad } from './$types';
 import { works } from '#lib/server/db/schema';
 import { awardPoints, putFile } from '#lib/server/points';
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
-
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(302, '/login?redirect=/works/new');
 	return {};
@@ -27,7 +25,6 @@ export const actions: Actions = {
 		const ext =
 			file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm');
 		if (!ext) return fail(400, { error: '仅支持 .html / .htm 文件' });
-		if (file.size > MAX_FILE_SIZE) return fail(400, { error: '文件不能超过 2MB' });
 
 		const text = await file.text();
 		if (text.length === 0) return fail(400, { error: '文件内容为空' });

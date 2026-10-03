@@ -44,7 +44,7 @@
 		<div class="form-group">
 			<label class="form-label" for="file">HTML 文件</label>
 			<input type="file" name="file" id="file" accept=".html,.htm" required />
-			<p class="form-hint">支持 .html / .htm，最大 2MB。上传后可在线预览和下载。</p>
+			<p class="form-hint">支持 .html / .htm 文件。上传后可在线预览和下载。</p>
 		</div>
 
 		<button type="submit" class="btn btn-primary">上传作品（+20 积分）</button>
