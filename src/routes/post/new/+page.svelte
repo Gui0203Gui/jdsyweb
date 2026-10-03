@@ -30,10 +30,6 @@
 					uploadError = `"${file.name}" 不是支持的图片格式（仅 JPG/PNG/GIF/WebP）`;
 					continue;
 				}
-				if (file.size > 5 * 1024 * 1024) {
-					uploadError = `"${file.name}" 超过 5MB`;
-					continue;
-				}
 				const fd = new FormData();
 				fd.append('file', file);
 				const res = await fetch('/api/upload', { method: 'POST', body: fd });
@@ -105,7 +101,7 @@
 		</div>
 
 		<div class="form-group">
-			<label class="form-label" for="images">图片（可选，最多 50 张，单张 ≤ 5MB）</label>
+			<label class="form-label" for="images">图片（可选，最多 50 张，支持 JPG/PNG/GIF/WebP）</label>
 			<input
 				type="file"
 				id="images"
