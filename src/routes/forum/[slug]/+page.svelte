@@ -56,4 +56,16 @@
 			</li>
 		{/each}
 	</ul>
+
+	{#if data.pageCount > 1}
+		<nav class="pagination">
+			{#if data.page > 1}
+				<a class="page-link" href={`/forum/${data.forum.slug}?page=${data.page - 1}`}>← 上一页</a>
+			{/if}
+			<span class="page-info">第 {data.page} / {data.pageCount} 页</span>
+			{#if data.page < data.pageCount}
+				<a class="page-link" href={`/forum/${data.forum.slug}?page=${data.page + 1}`}>下一页 →</a>
+			{/if}
+		</nav>
+	{/if}
 {/if}

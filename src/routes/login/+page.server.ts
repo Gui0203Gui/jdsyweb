@@ -23,6 +23,9 @@ export const actions: Actions = {
 		if (!user || !(await verifyPassword(password, user.passwordHash))) {
 			return fail(400, { error: '用户名或密码错误' });
 		}
+		if (user.isBanned) {
+			return fail(403, { error: '账号已被封禁，如有疑问请联系管理员' });
+		}
 
 		const { token, expiresAt } = await createSession(locals.db, user.id);
 		cookies.set(SESSION_COOKIE, token, {

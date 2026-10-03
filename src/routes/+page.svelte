@@ -11,9 +11,13 @@
 
 <div class="flex-between mb-16">
 	<h1 class="page-title" style="margin-bottom: 0;">🏫 交大实验网</h1>
-	{#if data.posts.length === 0}
-		<span class="badge">暂无帖子</span>
-	{/if}
+	<div class="flex">
+		<a href="/hot" class="btn btn-ghost btn-sm">🔥 热门</a>
+		<a href="/ranking" class="btn btn-ghost btn-sm">🏆 排行</a>
+		{#if data.posts.length === 0}
+			<span class="badge">暂无帖子</span>
+		{/if}
+	</div>
 </div>
 
 {#if data.forums.length > 0}
@@ -95,5 +99,17 @@
 				</li>
 			{/each}
 		</ul>
+
+		{#if data.pageCount > 1}
+			<nav class="pagination">
+				{#if data.page > 1}
+					<a class="page-link" href={`/?page=${data.page - 1}`}>← 上一页</a>
+				{/if}
+				<span class="page-info">第 {data.page} / {data.pageCount} 页</span>
+				{#if data.page < data.pageCount}
+					<a class="page-link" href={`/?page=${data.page + 1}`}>下一页 →</a>
+				{/if}
+			</nav>
+		{/if}
 	{/if}
 </section>

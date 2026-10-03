@@ -1,12 +1,19 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getForumBySlug, listPostsByForum } from '#lib/server/queries';
+import { countPosts, getForumBySlug, listPostsByForum } from '#lib/server/queries';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+const PAGE_SIZE = 20;
+
+export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const forum = await getForumBySlug(locals.db, params.slug);
 	if (!forum) error(404, '板块不存在');
 
-	const posts = await listPostsByForum(locals.db, forum.id);
+	const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
 
-	return { forum, posts };
+	const [posts, total] = await Promise.all([
+		listPostsByForum(locals.db, forum.id, (page - 1) * PAGE_SIZE, PAGE_SIZE),
+		countPosts(locals.db, forum.id)
+	]);
+
+	return { forum, posts, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 };

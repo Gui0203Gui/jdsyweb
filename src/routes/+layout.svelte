@@ -34,6 +34,9 @@
 			</nav>
 
 			<div class="topbar-actions">
+				<form action="/search" method="get" class="search-form">
+					<input type="search" name="q" placeholder="搜索帖子…" class="search-input" />
+				</form>
 				{#if data.user}
 					<a href="/works" class="btn btn-ghost btn-sm">🎨 作品集</a>
 					{#if data.user.signedToday}
@@ -42,14 +45,26 @@
 						<a href="/signin" class="btn btn-ghost btn-sm">📅 签到</a>
 					{/if}
 					<a href="/post/new" class="btn btn-primary btn-sm">发帖</a>
-					<span
+					<a href="/notifications" class="bell-link" title="消息通知">
+						🔔
+						{#if data.user.unreadCount > 0}
+							<span class="bell-badge"
+								>{data.user.unreadCount > 99 ? '99+' : data.user.unreadCount}</span
+							>
+						{/if}
+					</a>
+					{#if data.user.role === 'admin'}
+						<a href="/admin" class="btn btn-ghost btn-sm">🛡️ 管理</a>
+					{/if}
+					<a
+						href="/me"
 						class="user-chip"
 						title={`${data.user.username}（${data.user.role === 'admin' ? '管理员' : '吧友'}）`}
 					>
 						<span class="avatar">{data.user.avatar || '👤'}</span>
 						{data.user.username}
 						<span class="points-chip">⭐ {data.user.points}</span>
-					</span>
+					</a>
 					<form method="post" action="/logout">
 						<button type="submit" class="btn btn-ghost btn-sm">登出</button>
 					</form>

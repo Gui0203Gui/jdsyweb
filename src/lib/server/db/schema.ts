@@ -15,6 +15,7 @@ export const users = sqliteTable(
 		role: text('role', { enum: ['user', 'admin'] })
 			.notNull()
 			.default('user'),
+		isBanned: integer('is_banned', { mode: 'boolean' }).notNull().default(false),
 		points: integer('points').notNull().default(0),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.notNull()
@@ -61,6 +62,7 @@ export const posts = sqliteTable(
 		views: integer('views').notNull().default(0),
 		isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
 		isLocked: integer('is_locked', { mode: 'boolean' }).notNull().default(false),
+		isDeleted: integer('is_deleted', { mode: 'boolean' }).notNull().default(false),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -218,6 +220,30 @@ export const sessions = sqliteTable(
 	(table) => [index('sessions_user_idx').on(table.userId)]
 );
 
+/** 消息通知（回复/点赞/收藏/系统） */
+export const notifications = sqliteTable(
+	'notifications',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }), // 接收者
+		actorId: text('actor_id').notNull().default(''), // 触发者（可为空：系统通知）
+		type: text('type', {
+			enum: ['reply', 'like', 'favorite', 'system']
+		}).notNull(),
+		content: text('content').notNull(), // 展示文本
+		refId: text('ref_id').notNull().default(''), // 关联对象 id（帖子/评论等）
+		isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [index('notifications_user_created_idx').on(table.userId, table.createdAt)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Forum = typeof forums.$inferSelect;
 export type Post = typeof posts.$inferSelect;
@@ -228,6 +254,7 @@ export type SignIn = typeof signIns.$inferSelect;
 export type Work = typeof works.$inferSelect;
 export type PointLog = typeof pointLogs.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
 
 /** 便捷：SQL 常量，用于软删除/时间等场景 */
 export const now = sql`(unixepoch() * 1000)`;

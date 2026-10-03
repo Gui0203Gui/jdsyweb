@@ -1,6 +1,15 @@
-import { desc, eq, sql, count, and } from 'drizzle-orm';
+import { desc, eq, sql, count, and, like, or, type SQL } from 'drizzle-orm';
 import type { Db } from './auth';
-import { comments, favorites, forums, likes, posts, users, works } from './db/schema';
+import {
+	comments,
+	favorites,
+	forums,
+	likes,
+	notifications,
+	posts,
+	users,
+	works
+} from './db/schema';
 
 // ---------- 板块 ----------
 
@@ -21,8 +30,76 @@ export type PostWithAuthor = {
 	likeCount: number;
 };
 
-/** 首页帖子流：最新帖子（含作者、回复数、点赞数） */
-export async function listLatestPosts(db: Db, limit = 30) {
+/** 帖子列表核心查询（含作者、回复数、点赞数） */
+function postListQuery(db: Db, where: SQL | undefined) {
+	return db
+		.select({
+			post: posts,
+			author: users,
+			commentCount: sql<number>`count(distinct ${comments.id})`,
+			likeCount: sql<number>`count(distinct case when ${likes.targetType} = 'post' then ${likes.id} end)`
+		})
+		.from(posts)
+		.innerJoin(users, eq(posts.authorId, users.id))
+		.leftJoin(comments, eq(comments.postId, posts.id))
+		.leftJoin(likes, eq(likes.targetId, posts.id))
+		.where(where)
+		.groupBy(posts.id)
+		.orderBy(desc(posts.isPinned), desc(posts.createdAt));
+}
+
+type PostListRow = {
+	post: typeof posts.$inferSelect;
+	author: typeof users.$inferSelect;
+	commentCount: number;
+	likeCount: number;
+};
+
+function mapPostRows(rows: PostListRow[]) {
+	return rows.map((r) => ({
+		post: r.post,
+		author: r.author,
+		commentCount: Number(r.commentCount ?? 0),
+		likeCount: Number(r.likeCount ?? 0)
+	}));
+}
+
+/** 首页帖子流：最新帖子（含作者、回复数、点赞数），支持分页 */
+export async function listLatestPosts(db: Db, offset = 0, limit = 20) {
+	const rows = await postListQuery(db, eq(posts.isDeleted, false)).limit(limit).offset(offset);
+	return mapPostRows(rows);
+}
+
+/** 板块帖子列表，支持分页 */
+export async function listPostsByForum(db: Db, forumId: string, offset = 0, limit = 20) {
+	const rows = await postListQuery(db, and(eq(posts.forumId, forumId), eq(posts.isDeleted, false)))
+		.limit(limit)
+		.offset(offset);
+	return mapPostRows(rows);
+}
+
+/** 某用户发布的帖子（公开主页用），支持分页 */
+export async function listPostsByAuthor(db: Db, authorId: string, offset = 0, limit = 20) {
+	const rows = await postListQuery(
+		db,
+		and(eq(posts.authorId, authorId), eq(posts.isDeleted, false))
+	)
+		.limit(limit)
+		.offset(offset);
+	return mapPostRows(rows);
+}
+
+/** 帖子总数（分页用） */
+export async function countPosts(db: Db, forumId?: string) {
+	const where = forumId
+		? and(eq(posts.forumId, forumId), eq(posts.isDeleted, false))
+		: eq(posts.isDeleted, false);
+	const result = await db.select({ n: count() }).from(posts).where(where);
+	return result[0]?.n ?? 0;
+}
+
+/** 热门帖子：浏览量 + 回复×3 + 点赞×5 加权热度排序 */
+export async function listHotPosts(db: Db, limit = 10) {
 	const rows = await db
 		.select({
 			post: posts,
@@ -34,52 +111,48 @@ export async function listLatestPosts(db: Db, limit = 30) {
 		.innerJoin(users, eq(posts.authorId, users.id))
 		.leftJoin(comments, eq(comments.postId, posts.id))
 		.leftJoin(likes, eq(likes.targetId, posts.id))
+		.where(eq(posts.isDeleted, false))
 		.groupBy(posts.id)
-		.orderBy(desc(posts.isPinned), desc(posts.createdAt))
+		.orderBy(
+			desc(
+				sql`${posts.views} + count(distinct ${comments.id}) * 3 + count(distinct case when ${likes.targetType} = 'post' then ${likes.id} end) * 5`
+			)
+		)
 		.limit(limit);
-
-	return rows.map((r) => ({
-		post: r.post,
-		author: r.author,
-		commentCount: Number(r.commentCount ?? 0),
-		likeCount: Number(r.likeCount ?? 0)
-	}));
+	return mapPostRows(rows);
 }
 
-/** 板块帖子列表 */
-export async function listPostsByForum(db: Db, forumId: string, limit = 30) {
-	const rows = await db
-		.select({
-			post: posts,
-			author: users,
-			commentCount: sql<number>`count(distinct ${comments.id})`,
-			likeCount: sql<number>`count(distinct case when ${likes.targetType} = 'post' then ${likes.id} end)`
-		})
+/** 搜索帖子（标题 + 内容 LIKE），支持分页 */
+export async function searchPosts(db: Db, keyword: string, offset = 0, limit = 20) {
+	const pattern = `%${keyword}%`;
+	const rows = await postListQuery(
+		db,
+		and(eq(posts.isDeleted, false), or(like(posts.title, pattern), like(posts.content, pattern)))
+	)
+		.limit(limit)
+		.offset(offset);
+	return mapPostRows(rows);
+}
+
+export async function countSearchPosts(db: Db, keyword: string) {
+	const pattern = `%${keyword}%`;
+	const result = await db
+		.select({ n: count() })
 		.from(posts)
-		.innerJoin(users, eq(posts.authorId, users.id))
-		.leftJoin(comments, eq(comments.postId, posts.id))
-		.leftJoin(likes, eq(likes.targetId, posts.id))
-		.where(eq(posts.forumId, forumId))
-		.groupBy(posts.id)
-		.orderBy(desc(posts.isPinned), desc(posts.createdAt))
-		.limit(limit);
-
-	return rows.map((r) => ({
-		post: r.post,
-		author: r.author,
-		commentCount: Number(r.commentCount ?? 0),
-		likeCount: Number(r.likeCount ?? 0)
-	}));
+		.where(
+			and(eq(posts.isDeleted, false), or(like(posts.title, pattern), like(posts.content, pattern)))
+		);
+	return result[0]?.n ?? 0;
 }
 
-/** 帖子详情（含作者、板块） */
+/** 帖子详情（含作者、板块），排除已删除 */
 export async function getPostDetail(db: Db, postId: string) {
 	const row = await db
 		.select({ post: posts, author: users, forum: forums })
 		.from(posts)
 		.innerJoin(users, eq(posts.authorId, users.id))
 		.innerJoin(forums, eq(posts.forumId, forums.id))
-		.where(eq(posts.id, postId))
+		.where(and(eq(posts.id, postId), eq(posts.isDeleted, false)))
 		.get();
 
 	if (!row) return null;
@@ -196,7 +269,7 @@ export async function listUserFavorites(db: Db, userId: string, limit = 30) {
 		.innerJoin(forums, eq(posts.forumId, forums.id))
 		.leftJoin(comments, eq(comments.postId, posts.id))
 		.leftJoin(likes, eq(likes.targetId, posts.id))
-		.where(eq(favorites.userId, userId))
+		.where(and(eq(favorites.userId, userId), eq(posts.isDeleted, false)))
 		.groupBy(posts.id)
 		.orderBy(desc(favorites.createdAt))
 		.limit(limit);
@@ -228,6 +301,18 @@ export async function listWorks(db: Db, limit = 50) {
 	return rows.map((r) => ({ work: r.work, author: r.author }));
 }
 
+export async function listUserWorks(db: Db, authorId: string, limit = 50) {
+	const rows = await db
+		.select({ work: works, author: users })
+		.from(works)
+		.innerJoin(users, eq(works.authorId, users.id))
+		.where(eq(works.authorId, authorId))
+		.orderBy(desc(works.createdAt))
+		.limit(limit);
+
+	return rows.map((r) => ({ work: r.work, author: r.author }));
+}
+
 export async function getWorkDetail(db: Db, workId: string) {
 	const row = await db
 		.select({ work: works, author: users })
@@ -244,4 +329,182 @@ export async function incrementWorkViews(db: Db, workId: string) {
 		.update(works)
 		.set({ views: sql`${works.views} + 1` })
 		.where(eq(works.id, workId));
+}
+
+// ---------- 通知 ----------
+
+export async function createNotification(
+	db: Db,
+	input: {
+		userId: string;
+		actorId?: string;
+		type: 'reply' | 'like' | 'favorite' | 'system';
+		content: string;
+		refId?: string;
+	}
+) {
+	await db.insert(notifications).values({
+		userId: input.userId,
+		actorId: input.actorId ?? '',
+		type: input.type,
+		content: input.content,
+		refId: input.refId ?? ''
+	});
+}
+
+export async function listNotifications(db: Db, userId: string, limit = 30) {
+	return db
+		.select()
+		.from(notifications)
+		.where(eq(notifications.userId, userId))
+		.orderBy(desc(notifications.createdAt))
+		.limit(limit);
+}
+
+export async function countUnreadNotifications(db: Db, userId: string) {
+	const result = await db
+		.select({ n: count() })
+		.from(notifications)
+		.where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+	return result[0]?.n ?? 0;
+}
+
+export async function markNotificationsRead(db: Db, userId: string) {
+	await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, userId));
+}
+
+// ---------- 积分排行榜 ----------
+
+export type LeaderboardRow = {
+	user: typeof users.$inferSelect;
+	postCount: number;
+};
+
+export async function listLeaderboard(db: Db, limit = 50) {
+	const rows = await db
+		.select({
+			user: users,
+			postCount: sql<number>`count(distinct case when ${posts.isDeleted} = false then ${posts.id} end)`
+		})
+		.from(users)
+		.leftJoin(posts, eq(posts.authorId, users.id))
+		.groupBy(users.id)
+		.orderBy(desc(users.points), desc(users.createdAt))
+		.limit(limit);
+
+	return rows.map((r) => ({
+		user: r.user,
+		postCount: Number(r.postCount ?? 0)
+	}));
+}
+
+/** 当前用户在全站积分榜中的排名 */
+export async function getUserRank(db: Db, userId: string) {
+	const me = await db
+		.select({ points: users.points })
+		.from(users)
+		.where(eq(users.id, userId))
+		.get();
+	if (!me) return null;
+	const ahead = await db
+		.select({ n: count() })
+		.from(users)
+		.where(sql`${users.points} > ${me.points}`);
+	return (ahead[0]?.n ?? 0) + 1;
+}
+
+// ---------- 管理后台 ----------
+
+/** 管理后台：全部帖子（含已删除，可关键词筛选） */
+export async function listAllPostsAdmin(db: Db, keyword = '', limit = 50) {
+	const base = db
+		.select({
+			post: posts,
+			author: users,
+			forum: forums,
+			commentCount: sql<number>`count(distinct ${comments.id})`
+		})
+		.from(posts)
+		.innerJoin(users, eq(posts.authorId, users.id))
+		.innerJoin(forums, eq(posts.forumId, forums.id))
+		.leftJoin(comments, eq(comments.postId, posts.id));
+
+	const rows = keyword
+		? await base
+				.where(like(posts.title, `%${keyword}%`))
+				.groupBy(posts.id)
+				.orderBy(desc(posts.createdAt))
+				.limit(limit)
+		: await base.groupBy(posts.id).orderBy(desc(posts.createdAt)).limit(limit);
+
+	return rows.map((r) => ({
+		post: r.post,
+		author: r.author,
+		forum: r.forum,
+		commentCount: Number(r.commentCount ?? 0)
+	}));
+}
+
+/** 管理后台：全部用户（含被封禁） */
+export async function listUsersAdmin(db: Db, limit = 100) {
+	return db.select().from(users).orderBy(desc(users.createdAt)).limit(limit);
+}
+
+export async function setPostPinned(db: Db, postId: string, pinned: boolean) {
+	await db.update(posts).set({ isPinned: pinned }).where(eq(posts.id, postId));
+}
+
+export async function setPostLocked(db: Db, postId: string, locked: boolean) {
+	await db.update(posts).set({ isLocked: locked }).where(eq(posts.id, postId));
+}
+
+/** 软删除帖子（列表/详情自动隐藏） */
+export async function softDeletePost(db: Db, postId: string) {
+	await db.update(posts).set({ isDeleted: true }).where(eq(posts.id, postId));
+}
+
+/** 恢复被删帖子 */
+export async function restorePost(db: Db, postId: string) {
+	await db.update(posts).set({ isDeleted: false }).where(eq(posts.id, postId));
+}
+
+export async function setUserBanned(db: Db, userId: string, banned: boolean) {
+	await db.update(users).set({ isBanned: banned }).where(eq(users.id, userId));
+}
+
+export async function setUserRole(db: Db, userId: string, role: 'user' | 'admin') {
+	await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+// ---------- 用户 ----------
+
+export async function getUserById(db: Db, userId: string) {
+	return db.select().from(users).where(eq(users.id, userId)).get();
+}
+
+export async function getUserByUsername(db: Db, username: string) {
+	return db.select().from(users).where(eq(users.username, username)).get();
+}
+
+/** 个人主页：资料 + 统计（帖子数/作品数/评论数） */
+export async function getUserProfile(db: Db, userId: string) {
+	const user = await db.select().from(users).where(eq(users.id, userId)).get();
+	if (!user) return null;
+
+	const postCount = await db
+		.select({ n: count() })
+		.from(posts)
+		.where(and(eq(posts.authorId, userId), eq(posts.isDeleted, false)));
+	const workCount = await db.select({ n: count() }).from(works).where(eq(works.authorId, userId));
+	const commentCount = await db
+		.select({ n: count() })
+		.from(comments)
+		.where(eq(comments.authorId, userId));
+
+	return {
+		user,
+		postCount: postCount[0]?.n ?? 0,
+		workCount: workCount[0]?.n ?? 0,
+		commentCount: commentCount[0]?.n ?? 0
+	};
 }
