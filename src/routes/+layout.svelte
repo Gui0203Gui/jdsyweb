@@ -19,7 +19,7 @@
 	<header class="topbar">
 		<div class="topbar-inner">
 			<a href="/" class="brand">
-				<span class="brand-logo">🧪</span>
+				<span class="brand-logo">🏫</span>
 				<span class="brand-name">交大实验网</span>
 				<span class="brand-tag">民间贴吧</span>
 			</a>
@@ -35,6 +35,12 @@
 
 			<div class="topbar-actions">
 				{#if data.user}
+					<a href="/works" class="btn btn-ghost btn-sm">🎨 作品集</a>
+					{#if data.user.signedToday}
+						<span class="btn btn-ghost btn-sm" title="今天已签到">✅ 已签到</span>
+					{:else}
+						<a href="/signin" class="btn btn-ghost btn-sm">📅 签到</a>
+					{/if}
 					<a href="/post/new" class="btn btn-primary btn-sm">发帖</a>
 					<span
 						class="user-chip"
@@ -42,6 +48,7 @@
 					>
 						<span class="avatar">{data.user.avatar || '👤'}</span>
 						{data.user.username}
+						<span class="points-chip">⭐ {data.user.points}</span>
 					</span>
 					<form method="post" action="/logout">
 						<button type="submit" class="btn btn-ghost btn-sm">登出</button>

@@ -10,7 +10,7 @@
 </svelte:head>
 
 <div class="flex-between mb-16">
-	<h1 class="page-title" style="margin-bottom: 0;">🧪 交大实验网</h1>
+	<h1 class="page-title" style="margin-bottom: 0;">🏫 交大实验网</h1>
 	{#if data.posts.length === 0}
 		<span class="badge">暂无帖子</span>
 	{/if}
@@ -25,6 +25,31 @@
 					<div class="forum-card-icon">{forum.icon}</div>
 					<div class="forum-card-name">{forum.name}</div>
 					<div class="forum-card-desc">{forum.description || '暂无简介'}</div>
+				</a>
+			{/each}
+		</div>
+	</section>
+{/if}
+
+{#if data.works.length > 0}
+	<section class="mb-16">
+		<div class="flex-between">
+			<h2 class="section-title" style="margin-bottom: 0;">🎨 最新作品</h2>
+			<a href="/works" class="btn btn-ghost btn-sm">全部作品 →</a>
+		</div>
+		<div class="works-grid">
+			{#each data.works as item (item.work.id)}
+				<a href={`/works/${item.work.id}`} class="work-card">
+					<div class="work-card-icon">🖼️</div>
+					<div class="work-card-name">{item.work.title}</div>
+					{#if item.work.description}
+						<div class="work-card-desc">{item.work.description}</div>
+					{/if}
+					<div class="work-card-meta">
+						<span>👤 {item.author.username}</span>
+						<span>·</span>
+						<span>👁 {item.work.views}</span>
+					</div>
 				</a>
 			{/each}
 		</div>
@@ -58,7 +83,7 @@
 						<a href={`/post/${item.post.id}`} class="post-title">{item.post.title}</a>
 					</div>
 					<div class="post-meta">
-						<span>{item.author.avatar || '👤'} {item.author.username}</span>
+						<span>{item.author.avatar || '👤'} {item.author.username} ⭐{item.author.points}</span>
 						<span>·</span>
 						<span>{formatRelativeTime(item.post.createdAt)}</span>
 						<span>·</span>

@@ -1,6 +1,6 @@
-import { desc, eq, sql, count } from 'drizzle-orm';
+import { desc, eq, sql, count, and } from 'drizzle-orm';
 import type { Db } from './auth';
-import { comments, forums, likes, posts, users } from './db/schema';
+import { comments, favorites, forums, likes, posts, users, works } from './db/schema';
 
 // ---------- 板块 ----------
 
@@ -151,4 +151,97 @@ export async function toggleLike(
 export async function countAll(db: Db, table: typeof posts | typeof forums | typeof users) {
 	const result = await db.select({ n: count() }).from(table);
 	return result[0]?.n ?? 0;
+}
+
+// ---------- 收藏 ----------
+
+export async function isPostFavorited(db: Db, userId: string, postId: string) {
+	const row = await db
+		.select({ id: favorites.id })
+		.from(favorites)
+		.where(and(eq(favorites.userId, userId), eq(favorites.postId, postId)))
+		.get();
+	return Boolean(row);
+}
+
+/** 收藏 / 取消收藏；返回是否已收藏 */
+export async function toggleFavorite(db: Db, userId: string, postId: string) {
+	const existing = await db
+		.select({ id: favorites.id })
+		.from(favorites)
+		.where(and(eq(favorites.userId, userId), eq(favorites.postId, postId)))
+		.get();
+
+	if (existing) {
+		await db.delete(favorites).where(eq(favorites.id, existing.id));
+		return false;
+	}
+	await db.insert(favorites).values({ userId, postId });
+	return true;
+}
+
+/** 查询用户收藏的帖子列表 */
+export async function listUserFavorites(db: Db, userId: string, limit = 30) {
+	const rows = await db
+		.select({
+			post: posts,
+			author: users,
+			forum: forums,
+			commentCount: sql<number>`count(distinct ${comments.id})`,
+			likeCount: sql<number>`count(distinct case when ${likes.targetType} = 'post' then ${likes.id} end)`
+		})
+		.from(favorites)
+		.innerJoin(posts, eq(favorites.postId, posts.id))
+		.innerJoin(users, eq(posts.authorId, users.id))
+		.innerJoin(forums, eq(posts.forumId, forums.id))
+		.leftJoin(comments, eq(comments.postId, posts.id))
+		.leftJoin(likes, eq(likes.targetId, posts.id))
+		.where(eq(favorites.userId, userId))
+		.groupBy(posts.id)
+		.orderBy(desc(favorites.createdAt))
+		.limit(limit);
+
+	return rows.map((r) => ({
+		post: r.post,
+		author: r.author,
+		forum: r.forum,
+		commentCount: Number(r.commentCount ?? 0),
+		likeCount: Number(r.likeCount ?? 0)
+	}));
+}
+
+// ---------- 作品集 ----------
+
+export type WorkWithAuthor = {
+	work: typeof works.$inferSelect;
+	author: typeof users.$inferSelect;
+};
+
+export async function listWorks(db: Db, limit = 50) {
+	const rows = await db
+		.select({ work: works, author: users })
+		.from(works)
+		.innerJoin(users, eq(works.authorId, users.id))
+		.orderBy(desc(works.createdAt))
+		.limit(limit);
+
+	return rows.map((r) => ({ work: r.work, author: r.author }));
+}
+
+export async function getWorkDetail(db: Db, workId: string) {
+	const row = await db
+		.select({ work: works, author: users })
+		.from(works)
+		.innerJoin(users, eq(works.authorId, users.id))
+		.where(eq(works.id, workId))
+		.get();
+	if (!row) return null;
+	return { work: row.work, author: row.author };
+}
+
+export async function incrementWorkViews(db: Db, workId: string) {
+	await db
+		.update(works)
+		.set({ views: sql`${works.views} + 1` })
+		.where(eq(works.id, workId));
 }

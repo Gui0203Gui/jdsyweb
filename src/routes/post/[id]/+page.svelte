@@ -5,6 +5,29 @@
 
 	let { data, form }: PageProps = $props();
 	let replyText = $state('');
+
+	let postImages = $derived(parseImages(data.post.images));
+	let postLiked = $state(false);
+	// data.favorited 为初始收藏状态；交互后优先用本地覆盖值
+	let favoriteOverride = $state<boolean | null>(null);
+	let postFavorited = $derived(favoriteOverride ?? data.favorited);
+
+	function parseImages(imagesJson: string): string[] {
+		try {
+			const arr = JSON.parse(imagesJson || '[]');
+			return Array.isArray(arr) ? arr.filter((k) => typeof k === 'string') : [];
+		} catch {
+			return [];
+		}
+	}
+
+	function handleLike(result: { liked?: boolean }) {
+		if (result.liked !== undefined) postLiked = result.liked;
+	}
+
+	function handleFavorite(result: { favorited?: boolean }) {
+		if (result.favorited !== undefined) favoriteOverride = result.favorited;
+	}
 </script>
 
 <svelte:head>
@@ -31,6 +54,8 @@
 		<div class="post-meta">
 			<span>{data.author.avatar || '👤'} {data.author.username}</span>
 			<span>·</span>
+			<span>⭐ {data.author.points} 积分</span>
+			<span>·</span>
 			<span>{formatDateTime(data.post.createdAt)}</span>
 			<span>·</span>
 			<span>👁 {data.post.views}</span>
@@ -39,12 +64,34 @@
 
 	<div class="post-content">{data.post.content}</div>
 
+	{#if postImages.length > 0}
+		<div class="post-images">
+			{#each postImages as key (key)}
+				<a href={`/api/img/${key}`} target="_blank">
+					<img src={`/api/img/${key}`} alt="帖子图片" class="post-image" loading="lazy" />
+				</a>
+			{/each}
+		</div>
+	{/if}
+
 	{#if !data.post.isLocked}
-		<form method="post" action="?/like" use:enhance>
-			<input type="hidden" name="targetType" value="post" />
-			<input type="hidden" name="targetId" value={data.post.id} />
-			<button type="submit" class="btn btn-ghost btn-sm">👍 点赞</button>
-		</form>
+		<div class="post-actions">
+			<form method="post" action="?/like" use:enhance>
+				<input type="hidden" name="targetType" value="post" />
+				<input type="hidden" name="targetId" value={data.post.id} />
+				<button type="submit" class="btn btn-ghost btn-sm" data-enhance-on={handleLike}
+					>👍 点赞{postLiked ? '（已赞）' : ''}</button
+				>
+			</form>
+			{#if data.user}
+				<form method="post" action="?/favorite" use:enhance>
+					<input type="hidden" name="postId" value={data.post.id} />
+					<button type="submit" class="btn btn-ghost btn-sm" data-enhance-on={handleFavorite}
+						>🔖 {postFavorited ? '已收藏' : '收藏'}</button
+					>
+				</form>
+			{/if}
+		</div>
 	{/if}
 </article>
 
@@ -58,7 +105,10 @@
 	{#each data.comments as item, i (item.comment.id)}
 		<div class="comment">
 			<div class="comment-head">
-				<span>{item.author.avatar || '👤'} <strong>{item.author.username}</strong></span>
+				<span
+					>{item.author.avatar || '👤'} <strong>{item.author.username}</strong> ⭐{item.author
+						.points}</span
+				>
 				<span class="comment-floor">#{i + 1}楼</span>
 				<span class="comment-floor">{formatDateTime(item.comment.createdAt)}</span>
 			</div>
@@ -80,7 +130,7 @@
 	</div>
 {:else if data.user}
 	<section class="card mt-16">
-		<h2 class="section-title">发表回复</h2>
+		<h2 class="section-title">发表回复（+5 积分）</h2>
 		{#if form?.error}
 			<div class="form-error">{form.error}</div>
 		{/if}

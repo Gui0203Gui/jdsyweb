@@ -4,6 +4,12 @@
 	"compatibility_date": "2026-10-03",
 	"compatibility_flags": ["nodejs_als"],
 	"pages_build_output_dir": ".svelte-kit/cloudflare",
+	"kv_namespaces": [
+		{
+			"binding": "STORAGE",
+			"id": "cfeee31bb4084452af7b2341c79a9145"
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",

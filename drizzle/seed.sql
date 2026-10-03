@@ -3,7 +3,7 @@
 
 INSERT OR IGNORE INTO forums (id, slug, name, description, icon, sort_order, created_at) VALUES
 	('forum-general',  'general',   '综合讨论',   '校园生活、学习日常，畅所欲言',            '💬', 0, (unixepoch() * 1000)),
-	('forum-lab',      'lab',       '实验交流',   '实验课、实验报告、仪器与试剂经验分享',    '🧪', 1, (unixepoch() * 1000)),
+	('forum-campus',   'campus',    '校园生活',   '校园资讯、社团活动、日常见闻分享',        '🏫', 1, (unixepoch() * 1000)),
 	('forum-help',     'help',      '求助问答',   '学习上遇到问题？来这里提问',              '🙋', 2, (unixepoch() * 1000)),
 	('forum-share',    'share',     '资料分享',   '课件、笔记、复习资料，互通有无',          '📚', 3, (unixepoch() * 1000)),
 	('forum-water',    'water',     '灌水区',     '休闲聊天，欢迎水帖',                      '🌊', 4, (unixepoch() * 1000)),

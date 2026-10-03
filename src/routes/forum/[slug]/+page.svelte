@@ -41,7 +41,7 @@
 					<a href={`/post/${item.post.id}`} class="post-title">{item.post.title}</a>
 				</div>
 				<div class="post-meta">
-					<span>{item.author.avatar || '👤'} {item.author.username}</span>
+					<span>{item.author.avatar || '👤'} {item.author.username} ⭐{item.author.points}</span>
 					<span>·</span>
 					<span>{formatRelativeTime(item.post.createdAt)}</span>
 					<span>·</span>
