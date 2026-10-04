@@ -593,38 +593,62 @@ export async function setTeacherStatus(db: Db, teacherId: string, status: 'appro
 	await db.update(teachers).set({ status }).where(eq(teachers.id, teacherId));
 }
 
-/** 老师点赞/取消点赞；每人对每位老师一次；返回 { liked, likes } */
-export async function toggleTeacherLike(db: Db, userId: string, teacherId: string) {
-	const existing = await db
-		.select({ id: teacherLikes.id })
+/** 某用户今天对某老师的点赞记录（含已取消），无则 null */
+export async function getTeacherLikeToday(db: Db, userId: string, teacherId: string) {
+	return db
+		.select({ id: teacherLikes.id, cancelled: teacherLikes.cancelled })
 		.from(teacherLikes)
-		.where(and(eq(teacherLikes.userId, userId), eq(teacherLikes.teacherId, teacherId)))
+		.where(
+			and(
+				eq(teacherLikes.userId, userId),
+				eq(teacherLikes.teacherId, teacherId),
+				eq(teacherLikes.day, todayStr())
+			)
+		)
 		.get();
+}
 
+/** 给老师点赞（每位老师每天最多 1 次；取消后当天不能再点） */
+export async function likeTeacher(db: Db, userId: string, teacherId: string) {
+	const existing = await getTeacherLikeToday(db, userId, teacherId);
 	if (existing) {
-		await db.delete(teacherLikes).where(eq(teacherLikes.id, existing.id));
-		await db
-			.update(teachers)
-			.set({ likes: sql`${teachers.likes} - 1` })
-			.where(eq(teachers.id, teacherId));
-		return { liked: false };
+		return { ok: false, error: '今天已经赞过这位老师啦，明天再来吧' };
 	}
-
-	await db.insert(teacherLikes).values({ userId, teacherId });
+	await db.insert(teacherLikes).values({ userId, teacherId, day: todayStr(), cancelled: 0 });
 	await db
 		.update(teachers)
 		.set({ likes: sql`${teachers.likes} + 1` })
 		.where(eq(teachers.id, teacherId));
-	return { liked: true };
+	return { ok: true, liked: true };
 }
 
-/** 当前用户已点赞的老师 id 集合 */
+/** 取消今天对老师的点赞（仅当天有效；取消后当天不可再点） */
+export async function cancelTeacherLike(db: Db, userId: string, teacherId: string) {
+	const existing = await getTeacherLikeToday(db, userId, teacherId);
+	if (!existing || existing.cancelled !== 0) {
+		return { ok: false, error: '今天还没有给这位老师点赞' };
+	}
+	await db.update(teacherLikes).set({ cancelled: 1 }).where(eq(teacherLikes.id, existing.id));
+	await db
+		.update(teachers)
+		.set({ likes: sql`${teachers.likes} - 1` })
+		.where(eq(teachers.id, teacherId));
+	return { ok: true, liked: false };
+}
+
+/** 当前用户今天已投过票（点赞或取消）的老师 id 集合 */
 export async function likedTeacherIds(db: Db, userId: string, teacherIds: string[]) {
 	if (teacherIds.length === 0) return new Set<string>();
 	const rows = await db
 		.select({ teacherId: teacherLikes.teacherId })
 		.from(teacherLikes)
-		.where(and(eq(teacherLikes.userId, userId), inArray(teacherLikes.teacherId, teacherIds)));
+		.where(
+			and(
+				eq(teacherLikes.userId, userId),
+				eq(teacherLikes.day, todayStr()),
+				inArray(teacherLikes.teacherId, teacherIds)
+			)
+		);
 	return new Set(rows.map((r) => r.teacherId));
 }
 

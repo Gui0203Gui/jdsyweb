@@ -1,12 +1,14 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
+	cancelTeacherLike,
 	countApprovedTeachers,
 	createTeacher,
 	getTeacher,
+	getTeacherLikeToday,
+	likeTeacher,
 	likedTeacherIds,
-	listTeachers,
-	toggleTeacherLike
+	listTeachers
 } from '#lib/server/queries';
 
 const PAGE_SIZE = 20;
@@ -57,7 +59,7 @@ export const actions: Actions = {
 		return { ok: true, submittedId: id, name };
 	},
 
-	/** 老师点赞（每人每师一次，可取消） */
+	/** 老师点赞（每位老师每天最多 1 次；已赞再点=取消，取消后当天不能再点） */
 	like: async ({ request, locals }) => {
 		if (!locals.user) return fail(401, { error: '请先登录' });
 		const form = await request.formData();
@@ -69,8 +71,23 @@ export const actions: Actions = {
 			return fail(404, { error: '老师不存在或未通过审核' });
 		}
 
-		const { liked } = await toggleTeacherLike(locals.db, locals.user.id, teacherId);
+		const today = await getTeacherLikeToday(locals.db, locals.user.id, teacherId);
+		if (today) {
+			if (today.cancelled !== 0) {
+				// 今天已经点过又取消了 → 当天不能再点
+				return fail(400, { error: '今天已经给这位老师投过票啦，明天再来吧' });
+			}
+			// 已点赞 → 取消（当天取消后不可再点）
+			const r = await cancelTeacherLike(locals.db, locals.user.id, teacherId);
+			if (!r.ok) return fail(400, { error: r.error });
+			const updated = await getTeacher(locals.db, teacherId);
+			return { ok: true, liked: false, likes: updated?.likes ?? teacher.likes };
+		}
+
+		// 未投过 → 点赞
+		const r = await likeTeacher(locals.db, locals.user.id, teacherId);
+		if (!r.ok) return fail(400, { error: r.error });
 		const updated = await getTeacher(locals.db, teacherId);
-		return { ok: true, liked, likes: updated?.likes ?? teacher.likes };
+		return { ok: true, liked: true, likes: updated?.likes ?? teacher.likes };
 	}
 };

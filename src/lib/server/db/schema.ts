@@ -272,7 +272,7 @@ export const teachers = sqliteTable(
 	]
 );
 
-/** 老师点赞表（每人对每位老师只可点赞一次） */
+/** 老师点赞表（每位老师每天最多被同一用户点赞 1 次；取消后当天不能再点） */
 export const teacherLikes = sqliteTable(
 	'teacher_likes',
 	{
@@ -285,11 +285,15 @@ export const teacherLikes = sqliteTable(
 		teacherId: text('teacher_id')
 			.notNull()
 			.references(() => teachers.id, { onDelete: 'cascade' }),
+		day: text('day').notNull().default(''), // 点赞日期 YYYY-MM-DD（北京时间）
+		cancelled: integer('cancelled').notNull().default(0), // 1=当天已取消（当天不可再点）
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.notNull()
 			.$defaultFn(() => new Date())
 	},
-	(table) => [uniqueIndex('teacher_likes_user_teacher_idx').on(table.userId, table.teacherId)]
+	(table) => [
+		uniqueIndex('teacher_likes_user_teacher_day_idx').on(table.userId, table.teacherId, table.day)
+	]
 );
 
 /** 道具表（用户背包，每件一行） */

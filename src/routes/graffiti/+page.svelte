@@ -47,7 +47,8 @@
 			img.onload = () => {
 				g.drawImage(img, 0, 0, c.width, c.height);
 			};
-			img.src = data.wallUrl;
+			// 带版本号请求，绕过浏览器缓存，确保拿到最新画布
+			img.src = `${data.wallUrl}?v=${data.updatedAt ?? Date.now()}`;
 		}
 	});
 

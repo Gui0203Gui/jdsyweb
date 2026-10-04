@@ -178,6 +178,9 @@
 								>
 									{isLiked(teacher.id) ? '已点赞' : '👍 点赞'}
 								</button>
+								{#if form?.error && form?.error.includes('今天')}
+									<div class="form-error like-err">{form.error}</div>
+								{/if}
 							</form>
 						{:else}
 							<a href="/login" class="btn btn-ghost btn-sm">登录点赞</a>
@@ -238,5 +241,9 @@
 		font-weight: 600;
 		color: var(--accent, #2f7d5c);
 		white-space: nowrap;
+	}
+	.like-err {
+		margin-top: 6px;
+		max-width: 180px;
 	}
 </style>
