@@ -291,6 +291,64 @@ export const teacherLikes = sqliteTable(
 	(table) => [uniqueIndex('teacher_likes_user_teacher_idx').on(table.userId, table.teacherId)]
 );
 
+/** 道具表（用户背包，每件一行） */
+export const items = sqliteTable(
+	'items',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		ownerId: text('owner_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }), // 当前持有者
+		itemType: text('item_type', {
+			enum: ['flower:poppy', 'flower:cornflower', 'flower:dandelion']
+		}).notNull(), // 道具类型
+		source: text('source', { enum: ['festival-signin', 'gift'] }).notNull(), // 来源：国庆签到 / 好友赠送
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [index('items_owner_idx').on(table.ownerId)]
+);
+
+/** 国庆签到活动记录（假期内每天一次，随机领花） */
+export const festivalSignIns = sqliteTable(
+	'festival_sign_ins',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		signinDate: text('signin_date').notNull(), // YYYY-MM-DD
+		itemType: text('item_type').notNull(), // 当天随机获得的花
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [uniqueIndex('festival_sign_ins_user_date_idx').on(table.userId, table.signinDate)]
+);
+
+/** 涂鸦留言板（大画布涂鸦，可擦除） */
+export const graffitis = sqliteTable(
+	'graffitis',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		authorId: text('author_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		imageKey: text('image_key').notNull(), // img/graff-<uuid>.png
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [index('graffitis_created_idx').on(table.createdAt)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Forum = typeof forums.$inferSelect;
 export type Post = typeof posts.$inferSelect;
@@ -304,6 +362,9 @@ export type Session = typeof sessions.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Teacher = typeof teachers.$inferSelect;
 export type TeacherLike = typeof teacherLikes.$inferSelect;
+export type Item = typeof items.$inferSelect;
+export type FestivalSignIn = typeof festivalSignIns.$inferSelect;
+export type Graffiti = typeof graffitis.$inferSelect;
 
 /** 便捷：SQL 常量，用于软删除/时间等场景 */
 export const now = sql`(unixepoch() * 1000)`;

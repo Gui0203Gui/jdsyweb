@@ -3,7 +3,10 @@ import type { Db } from './auth';
 import {
 	comments,
 	favorites,
+	festivalSignIns,
 	forums,
+	graffitis,
+	items,
 	likes,
 	notifications,
 	posts,
@@ -12,6 +15,8 @@ import {
 	users,
 	works
 } from './db/schema';
+import { FLOWER_TYPES, type FlowerType } from '#lib/flowers';
+import { todayStr } from './points';
 
 // ---------- 板块 ----------
 
@@ -603,4 +608,110 @@ export async function likedTeacherIds(db: Db, userId: string, teacherIds: string
 		.from(teacherLikes)
 		.where(and(eq(teacherLikes.userId, userId), inArray(teacherLikes.teacherId, teacherIds)));
 	return new Set(rows.map((r) => r.teacherId));
+}
+
+// ---------- 道具 / 背包 ----------
+
+/** 用户背包道具列表（按获得时间倒序） */
+export async function listItems(db: Db, userId: string) {
+	return db.select().from(items).where(eq(items.ownerId, userId)).orderBy(desc(items.createdAt));
+}
+
+export async function getItem(db: Db, itemId: string) {
+	return db.select().from(items).where(eq(items.id, itemId)).get();
+}
+
+/** 发放道具（source：festival-signin 签到 / gift 赠送） */
+export async function addItem(
+	db: Db,
+	userId: string,
+	itemType: FlowerType,
+	source: 'festival-signin' | 'gift'
+) {
+	await db.insert(items).values({ ownerId: userId, itemType, source });
+}
+
+/**
+ * 赠送道具：道具必须属于当前用户；转移给目标用户并通知。
+ * 返回 { ok, error? }。
+ */
+export async function giftItem(
+	db: Db,
+	itemId: string,
+	fromUserId: string,
+	toUser: typeof users.$inferSelect
+) {
+	const item = await getItem(db, itemId);
+	if (!item || item.ownerId !== fromUserId) {
+		return { ok: false, error: '道具不存在或不属于你' };
+	}
+	await db.update(items).set({ ownerId: toUser.id }).where(eq(items.id, itemId));
+	return { ok: true };
+}
+
+// ---------- 国庆签到活动 ----------
+
+/** 某用户某天是否已领花 */
+export async function festivalClaimedOn(db: Db, userId: string, date: string) {
+	const row = await db
+		.select({ itemType: festivalSignIns.itemType })
+		.from(festivalSignIns)
+		.where(and(eq(festivalSignIns.userId, userId), eq(festivalSignIns.signinDate, date)))
+		.get();
+	return row ? row.itemType : null;
+}
+
+/** 国庆领花：每天一次，随机三花之一；返回 { ok, error?, flower? } */
+export async function claimFestivalFlower(db: Db, userId: string) {
+	const date = todayStr();
+	if (date < '2026-10-01' || date > '2026-10-07') {
+		return { ok: false, error: '活动已结束或尚未开始' };
+	}
+	const claimed = await festivalClaimedOn(db, userId, date);
+	if (claimed) return { ok: false, error: '今天已经领过啦，明天再来' };
+
+	const picked = FLOWER_TYPES[Math.floor(Math.random() * FLOWER_TYPES.length)] as FlowerType;
+	await db.insert(festivalSignIns).values({ userId, signinDate: date, itemType: picked });
+	await addItem(db, userId, picked, 'festival-signin');
+	return { ok: true, flower: picked };
+}
+
+/** 用户全部领花记录（按日期倒序） */
+export async function listFestivalClaims(db: Db, userId: string, limit = 30) {
+	return db
+		.select()
+		.from(festivalSignIns)
+		.where(eq(festivalSignIns.userId, userId))
+		.orderBy(desc(festivalSignIns.signinDate))
+		.limit(limit);
+}
+
+// ---------- 涂鸦留言板 ----------
+
+export type GraffitiWithAuthor = {
+	graffiti: typeof graffitis.$inferSelect;
+	author: typeof users.$inferSelect;
+};
+
+/** 涂鸦列表（含作者，按时间倒序） */
+export async function listGraffiti(db: Db, limit = 40) {
+	const rows = await db
+		.select({ graffiti: graffitis, author: users })
+		.from(graffitis)
+		.innerJoin(users, eq(graffitis.authorId, users.id))
+		.orderBy(desc(graffitis.createdAt))
+		.limit(limit);
+	return rows.map((r) => ({ graffiti: r.graffiti, author: r.author }));
+}
+
+export async function addGraffiti(db: Db, authorId: string, imageKey: string) {
+	await db.insert(graffitis).values({ authorId, imageKey });
+}
+
+export async function getGraffiti(db: Db, graffitiId: string) {
+	return db.select().from(graffitis).where(eq(graffitis.id, graffitiId)).get();
+}
+
+export async function deleteGraffiti(db: Db, graffitiId: string) {
+	await db.delete(graffitis).where(eq(graffitis.id, graffitiId));
 }

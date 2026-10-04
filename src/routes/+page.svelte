@@ -16,6 +16,9 @@
 		<a href="/hot" class="btn btn-ghost btn-sm">🔥 热门</a>
 		<a href="/ranking" class="btn btn-ghost btn-sm">🏆 排行</a>
 		<a href="/teachers" class="btn btn-ghost btn-sm">👨‍🏫 老师榜</a>
+		<a href="/bag" class="btn btn-ghost btn-sm">🎒 背包</a>
+		<a href="/festival" class="btn btn-ghost btn-sm">🎁 国庆领花</a>
+		<a href="/graffiti" class="btn btn-ghost btn-sm">🎨 涂鸦墙</a>
 		{#if data.posts.length === 0}
 			<span class="badge">暂无帖子</span>
 		{/if}
