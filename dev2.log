@@ -1,0 +1,46 @@
+﻿
+ ⛅️ wrangler 4.147.0
+────────────────────
+✨ Compiled Worker successfully
+✨ Parsed 2 valid header rules.
+Using secrets defined in .env
+Your Worker has access to the following bindings:
+Binding                                                                      Resource                  Mode
+env.STORAGE (cfeee31bb4084452af7b2341c79a9145)                               KV Namespace              local
+env.DB (jdsyweb)                                                             D1 Database               local
+env.CF_PAGES ("1")                                                           Environment Variable      local
+env.CF_PAGES_BRANCH ("main")                                                 Environment Variable      local
+env.CF_PAGES_COMMIT_SHA ("38ae99a37c14b7745e10f84b5304a45a69f82...")         Environment Variable      local
+env.CF_PAGES_URL ("https://38ae99a.jdsyweb.pages.dev")                       Environment Variable      local
+env.CLOUDFLARE_ACCOUNT_ID ("(hidden)")                                       Environment Variable      local
+env.CLOUDFLARE_DATABASE_ID ("(hidden)")                                      Environment Variable      local
+env.CLOUDFLARE_D1_TOKEN ("(hidden)")                                         Environment Variable      local
+
+⎔ Starting local server...
+[wrangler:info] Ready on http://127.0.0.1:8788
+[wrangler:info] GET / 200 OK (536ms)
+[wrangler:info] GET /teachers 200 OK (67ms)
+[wrangler:info] POST /register 400 Bad Request (141ms)
+[wrangler:info] POST /register 400 Bad Request (26ms)
+[wrangler:info] GET /teachers 200 OK (265ms)
+[wrangler:info] GET /admin/teachers 302 Found (38ms)
+[wrangler:info] POST /admin/teachers 403 Forbidden (31ms)
+[wrangler:info] GET /teachers 200 OK (67ms)
+[wrangler:info] POST /teachers 401 Unauthorized (22ms)
+[wrangler:info] POST /teachers 401 Unauthorized (189ms)
+[wrangler:info] POST /register 200 OK (2211ms)
+[wrangler:info] POST /register 200 OK (2814ms)
+[wrangler:info] GET /teachers 200 OK (1150ms)
+[wrangler:info] GET /admin/teachers 302 Found (177ms)
+[wrangler:info] POST /admin/teachers 403 Forbidden (72ms)
+[wrangler:info] GET /teachers 200 OK (65ms)
+[wrangler:info] POST /teachers 404 Not Found (68ms)
+[wrangler:info] POST /teachers 404 Not Found (109ms)
+[wrangler:info] POST /teachers 200 OK (239ms)
+[wrangler:info] GET /teachers 200 OK (66ms)
+[wrangler:info] POST /admin/teachers 200 OK (92ms)
+[wrangler:info] GET /teachers 200 OK (19ms)
+[wrangler:info] POST /teachers 200 OK (37ms)
+[wrangler:info] GET /teachers 200 OK (15ms)
+[wrangler:info] POST /teachers 200 OK (32ms)
+[wrangler:info] GET /teachers 200 OK (13ms)

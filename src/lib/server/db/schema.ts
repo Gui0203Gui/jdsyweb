@@ -244,6 +244,53 @@ export const notifications = sqliteTable(
 	(table) => [index('notifications_user_created_idx').on(table.userId, table.createdAt)]
 );
 
+/** 老师表（老师评分排行榜） */
+export const teachers = sqliteTable(
+	'teachers',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		name: text('name').notNull(), // 老师姓名
+		avatar: text('avatar').notNull().default(''), // 头像 KV key（img/...），空则占位
+		description: text('description').notNull().default(''), // 简介（科目/评价等，可选）
+		createdBy: text('created_by')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }), // 上传者
+		status: text('status', { enum: ['pending', 'approved', 'rejected'] })
+			.notNull()
+			.default('pending'), // 待审核/已通过/已驳回
+		likes: integer('likes').notNull().default(0), // 点赞数（评分）
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [
+		index('teachers_status_likes_idx').on(table.status, table.likes),
+		index('teachers_created_by_idx').on(table.createdBy)
+	]
+);
+
+/** 老师点赞表（每人对每位老师只可点赞一次） */
+export const teacherLikes = sqliteTable(
+	'teacher_likes',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		teacherId: text('teacher_id')
+			.notNull()
+			.references(() => teachers.id, { onDelete: 'cascade' }),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [uniqueIndex('teacher_likes_user_teacher_idx').on(table.userId, table.teacherId)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Forum = typeof forums.$inferSelect;
 export type Post = typeof posts.$inferSelect;
@@ -255,6 +302,8 @@ export type Work = typeof works.$inferSelect;
 export type PointLog = typeof pointLogs.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type Teacher = typeof teachers.$inferSelect;
+export type TeacherLike = typeof teacherLikes.$inferSelect;
 
 /** 便捷：SQL 常量，用于软删除/时间等场景 */
 export const now = sql`(unixepoch() * 1000)`;

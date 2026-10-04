@@ -1,4 +1,4 @@
-import { desc, eq, sql, count, and, like, or, type SQL } from 'drizzle-orm';
+import { desc, eq, sql, count, and, like, or, inArray, type SQL } from 'drizzle-orm';
 import type { Db } from './auth';
 import {
 	comments,
@@ -7,6 +7,8 @@ import {
 	likes,
 	notifications,
 	posts,
+	teacherLikes,
+	teachers,
 	users,
 	works
 } from './db/schema';
@@ -507,4 +509,98 @@ export async function getUserProfile(db: Db, userId: string) {
 		workCount: workCount[0]?.n ?? 0,
 		commentCount: commentCount[0]?.n ?? 0
 	};
+}
+
+// ---------- 老师评分排行榜 ----------
+
+/** 老师排行榜：仅已审核通过，按点赞数降序，支持分页 */
+export async function listTeachers(db: Db, offset = 0, limit = 20) {
+	return db
+		.select()
+		.from(teachers)
+		.where(eq(teachers.status, 'approved'))
+		.orderBy(desc(teachers.likes), teachers.createdAt)
+		.limit(limit)
+		.offset(offset);
+}
+
+export async function countApprovedTeachers(db: Db) {
+	const result = await db
+		.select({ n: count() })
+		.from(teachers)
+		.where(eq(teachers.status, 'approved'));
+	return result[0]?.n ?? 0;
+}
+
+export async function getTeacher(db: Db, teacherId: string) {
+	return db.select().from(teachers).where(eq(teachers.id, teacherId)).get();
+}
+
+/** 提交老师（进入待审核） */
+export async function createTeacher(
+	db: Db,
+	input: { name: string; avatar: string; description: string; createdBy: string }
+) {
+	const result = await db
+		.insert(teachers)
+		.values({
+			name: input.name,
+			avatar: input.avatar,
+			description: input.description,
+			createdBy: input.createdBy,
+			status: 'pending'
+		})
+		.returning({ id: teachers.id });
+	return result[0]?.id ?? '';
+}
+
+/** 管理后台：待审核老师列表（含上传者） */
+export async function listPendingTeachers(db: Db, limit = 100) {
+	const rows = await db
+		.select({ teacher: teachers, submitter: users })
+		.from(teachers)
+		.innerJoin(users, eq(teachers.createdBy, users.id))
+		.where(eq(teachers.status, 'pending'))
+		.orderBy(teachers.createdAt)
+		.limit(limit);
+	return rows.map((r) => ({ teacher: r.teacher, submitter: r.submitter }));
+}
+
+export async function setTeacherStatus(db: Db, teacherId: string, status: 'approved' | 'rejected') {
+	await db.update(teachers).set({ status }).where(eq(teachers.id, teacherId));
+}
+
+/** 老师点赞/取消点赞；每人对每位老师一次；返回 { liked, likes } */
+export async function toggleTeacherLike(db: Db, userId: string, teacherId: string) {
+	const existing = await db
+		.select({ id: teacherLikes.id })
+		.from(teacherLikes)
+		.where(and(eq(teacherLikes.userId, userId), eq(teacherLikes.teacherId, teacherId)))
+		.get();
+
+	if (existing) {
+		await db.delete(teacherLikes).where(eq(teacherLikes.id, existing.id));
+		await db
+			.update(teachers)
+			.set({ likes: sql`${teachers.likes} - 1` })
+			.where(eq(teachers.id, teacherId));
+		return { liked: false };
+	}
+
+	await db.insert(teacherLikes).values({ userId, teacherId });
+	await db
+		.update(teachers)
+		.set({ likes: sql`${teachers.likes} + 1` })
+		.where(eq(teachers.id, teacherId));
+	return { liked: true };
+}
+
+/** 当前用户已点赞的老师 id 集合 */
+export async function likedTeacherIds(db: Db, userId: string, teacherIds: string[]) {
+	if (teacherIds.length === 0) return new Set<string>();
+	const rows = await db
+		.select({ teacherId: teacherLikes.teacherId })
+		.from(teacherLikes)
+		.where(and(eq(teacherLikes.userId, userId), inArray(teacherLikes.teacherId, teacherIds)));
+	return new Set(rows.map((r) => r.teacherId));
 }
