@@ -649,6 +649,25 @@ export async function giftItem(
 	return { ok: true };
 }
 
+/** 按类型赠送一株：从发送者该类型道具中取最早的一株转移给目标用户 */
+export async function giftItemByType(
+	db: Db,
+	fromUserId: string,
+	toUser: typeof users.$inferSelect,
+	itemType: FlowerType
+) {
+	const row = await db
+		.select({ id: items.id })
+		.from(items)
+		.where(and(eq(items.ownerId, fromUserId), eq(items.itemType, itemType)))
+		.orderBy(items.createdAt)
+		.limit(1)
+		.get();
+	if (!row) return { ok: false, error: '你没有这种道具' };
+	await db.update(items).set({ ownerId: toUser.id }).where(eq(items.id, row.id));
+	return { ok: true };
+}
+
 // ---------- 国庆签到活动 ----------
 
 /** 某用户某天是否已领花 */

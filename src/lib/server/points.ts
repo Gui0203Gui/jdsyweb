@@ -15,10 +15,15 @@ function getStorage(): KVNamespace {
 	return ns;
 }
 
-export async function putFile(key: string, data: ArrayBuffer | string, contentType?: string) {
+export async function putFile(
+	key: string,
+	data: ArrayBuffer | string,
+	contentType?: string,
+	extraMeta?: Record<string, unknown>
+) {
 	const ns = getStorage();
-	if (contentType) {
-		await ns.put(key, data, { metadata: { contentType } });
+	if (contentType || extraMeta) {
+		await ns.put(key, data, { metadata: { contentType, ...extraMeta } });
 	} else {
 		await ns.put(key, data);
 	}
@@ -38,6 +43,30 @@ export async function getFile(
 			? String(value.metadata.contentType)
 			: null) || 'application/octet-stream';
 	return { data: value.value, contentType };
+}
+
+/** 读取文件本体 + 附加元数据（如涂鸦画布的最后编辑者/时间） */
+export async function getFileInfo(
+	key: string
+): Promise<{
+	data: ArrayBuffer;
+	contentType: string;
+	metadata: Record<string, unknown> | null;
+} | null> {
+	const ns = getStorage();
+	const value = await ns.getWithMetadata(key, 'arrayBuffer');
+	if (value.value === null) return null;
+	const contentType =
+		(typeof value.metadata === 'object' &&
+		value.metadata !== null &&
+		'contentType' in value.metadata
+			? String(value.metadata.contentType)
+			: null) || 'application/octet-stream';
+	const meta =
+		typeof value.metadata === 'object' && value.metadata !== null
+			? (value.metadata as Record<string, unknown>)
+			: null;
+	return { data: value.value, contentType, metadata: meta };
 }
 
 export async function getFileText(key: string): Promise<string | null> {

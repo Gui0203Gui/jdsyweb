@@ -10,56 +10,23 @@ env.STORAGE (cfeee31bb4084452af7b2341c79a9145)                               KV 
 env.DB (jdsyweb)                                                             D1 Database               local
 env.CF_PAGES ("1")                                                           Environment Variable      local
 env.CF_PAGES_BRANCH ("main")                                                 Environment Variable      local
-env.CF_PAGES_COMMIT_SHA ("6dc822e2313e2dea689e997feeb729db1d35c...")         Environment Variable      local
-env.CF_PAGES_URL ("https://6dc822e.jdsyweb.pages.dev")                       Environment Variable      local
+env.CF_PAGES_COMMIT_SHA ("9837849e8089e69a4d2301e6143c6b5c2d8dd...")         Environment Variable      local
+env.CF_PAGES_URL ("https://9837849.jdsyweb.pages.dev")                       Environment Variable      local
 env.CLOUDFLARE_ACCOUNT_ID ("(hidden)")                                       Environment Variable      local
 env.CLOUDFLARE_DATABASE_ID ("(hidden)")                                      Environment Variable      local
 env.CLOUDFLARE_D1_TOKEN ("(hidden)")                                         Environment Variable      local
 
 ⎔ Starting local server...
 [wrangler:info] Ready on http://127.0.0.1:8788
-[wrangler:info] POST /register 200 OK (296ms)
-[wrangler:info] POST /register 200 OK (163ms)
-[wrangler:info] POST /login 200 OK (153ms)
-[wrangler:info] GET /bag 302 Found (15ms)
-[wrangler:info] GET /login 200 OK (36ms)
-[31mX [41;31m[[41;97mERROR[41;31m][0m [1mUnhandled server error: { status: 401, message: '请先登录' }[0m
-
-
-[wrangler:info] POST /festival 401 Unauthorized (34ms)
-[31mX [41;31m[[41;97mERROR[41;31m][0m [1mUnhandled server error: { status: 401, message: '请先登录' }[0m
-
-
-[wrangler:info] POST /festival 401 Unauthorized (7ms)
-[wrangler:info] GET /bag 302 Found (8ms)
-[wrangler:info] GET /login 200 OK (7ms)
-[wrangler:info] GET /bag 302 Found (12ms)
-[wrangler:info] GET /login 200 OK (10ms)
-[wrangler:info] POST /login 200 OK (195ms)
-[wrangler:info] GET /bag 302 Found (8ms)
-[wrangler:info] GET /login 200 OK (7ms)
-[wrangler:info] GET /notifications 302 Found (7ms)
-[wrangler:info] GET /login 200 OK (8ms)
-[wrangler:info] POST /login 200 OK (260ms)
-[wrangler:info] POST /login 200 OK (222ms)
-[wrangler:info] POST /register 400 Bad Request (18ms)
-[wrangler:info] POST /register 400 Bad Request (8ms)
-[wrangler:info] POST /login 200 OK (127ms)
-[wrangler:info] GET /bag 200 OK (31ms)
-[wrangler:info] POST /festival 200 OK (20ms)
-[wrangler:info] POST /festival 200 OK (12ms)
-[wrangler:info] GET /bag 200 OK (18ms)
-[wrangler:info] POST /login 200 OK (117ms)
-[wrangler:info] GET /bag 200 OK (20ms)
-[wrangler:info] GET /notifications 200 OK (20ms)
-[wrangler:info] POST /login 200 OK (316ms)
-[wrangler:info] POST /bag 200 OK (76ms)
-[wrangler:info] GET /bag 200 OK (45ms)
-[wrangler:info] POST /login 200 OK (109ms)
-[wrangler:info] GET /bag 200 OK (21ms)
-[wrangler:info] GET /notifications 200 OK (17ms)
-[wrangler:info] POST /login 200 OK (140ms)
-[wrangler:info] POST /api/graffiti 200 OK (138ms)
-[wrangler:info] GET /graffiti 200 OK (18ms)
-[wrangler:info] POST /graffiti 200 OK (39ms)
-[wrangler:info] GET /graffiti 200 OK (9ms)
+[wrangler:info] POST /login 200 OK (330ms)
+[wrangler:info] GET /bag 200 OK (90ms)
+[wrangler:info] GET /bag 200 OK (42ms)
+[wrangler:info] POST /login 200 OK (191ms)
+[wrangler:info] POST /bag 200 OK (44ms)
+[wrangler:info] POST /bag 400 Bad Request (15ms)
+[wrangler:info] GET /graffiti 200 OK (50ms)
+[wrangler:info] POST /api/graffiti 200 OK (42ms)
+[wrangler:info] GET /graffiti 200 OK (16ms)
+[wrangler:info] GET /api/img/img/graff-wall.png 200 OK (16ms)
+[wrangler:info] POST /api/graffiti 200 OK (27ms)
+[wrangler:info] GET /graffiti 200 OK (15ms)

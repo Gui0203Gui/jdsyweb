@@ -1,12 +1,37 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { enhance } from '$app/forms';
-	import type { FlowerType } from '#lib/flowers';
-	import { FLOWERS } from '#lib/flowers';
+	import { FLOWERS, type FlowerType } from '#lib/flowers';
 
 	let { data, form }: PageProps = $props();
 
 	const FLOWER_LIST = Object.values(FLOWERS);
+
+	// MC 物品栏：固定 9 列网格，只放拥有的道具，其余为暗色空槽
+	const SLOTS_PER_ROW = 9;
+	// 槽位按 9 的倍数补齐（最少 1 行 9 格）：只放拥有的道具，空槽补位
+	const slots = $derived.by(() => {
+		const total = Math.max(
+			SLOTS_PER_ROW,
+			Math.ceil(data.counts.length / SLOTS_PER_ROW) * SLOTS_PER_ROW
+		);
+		const arr: {
+			type: string | null;
+			info: (typeof FLOWERS)[keyof typeof FLOWERS] | null;
+			n: number;
+		}[] = [];
+		for (const c of data.counts) {
+			arr.push({ type: c.type, info: c.info, n: c.n });
+		}
+		while (arr.length < total) {
+			arr.push({ type: null, info: null, n: 0 });
+		}
+		return arr;
+	});
+
+	let selected = $state<string | null>(null);
+	function pick(type: string) {
+		selected = selected === type ? null : type;
+	}
 
 	function fmtDate(ts: Date | number): string {
 		const d = new Date(ts);
@@ -15,11 +40,7 @@
 		).padStart(2, '0')}`;
 	}
 
-	// 每个道具的赠送表单是否展开
-	let sendingId = $state<string | null>(null);
-	function toggleSend(id: string) {
-		sendingId = sendingId === id ? null : id;
-	}
+	const selInfo = (t: string | null) => FLOWERS[t as FlowerType] ?? null;
 </script>
 
 <svelte:head>
@@ -27,7 +48,9 @@
 </svelte:head>
 
 <h1 class="page-title">🎒 我的背包</h1>
-<p class="form-hint" style="margin-bottom:16px;">这里存放你的绝版花朵道具，可以送给其他吧友。</p>
+<p class="form-hint" style="margin-bottom:16px;">
+	绝版花朵道具存放在这里。点击格子可以选择送给其他吧友。
+</p>
 
 {#if form?.success}
 	<div class="form-success">{form.success}</div>
@@ -36,19 +59,58 @@
 	<div class="form-error">{form.error}</div>
 {/if}
 
-<!-- 各花数量总览 -->
-<section class="bag-summary">
-	{#each FLOWER_LIST as f (f.key)}
-		{@const n = data.counts.find((c) => c.type === f.key)?.n ?? 0}
-		<div class="bag-summary-card">
-			<img src={f.image} alt={f.name} class="flower-img" />
-			<div class="bag-summary-name">
-				{f.name} <span class="tag">绝版</span>
-			</div>
-			<div class="bag-summary-count">× {n}</div>
-		</div>
-	{/each}
+<!-- MC 风格物品栏 -->
+<section class="inventory">
+	<div class="inventory-grid">
+		{#each slots as slot, i (i)}
+			{#if slot.type}
+				<button
+					type="button"
+					class="slot slot-filled"
+					class:slot-selected={selected === slot.type}
+					onclick={() => pick(slot.type!)}
+					title={`${slot.info?.name ?? slot.type} × ${slot.n}`}
+				>
+					{#if slot.info}
+						<img src={slot.info.image} alt={slot.info.name} class="slot-icon" />
+					{:else}
+						<span class="slot-icon slot-unknown">🪻</span>
+					{/if}
+					<span class="slot-count">{slot.n}</span>
+				</button>
+			{:else}
+				<div class="slot slot-empty" aria-hidden="true"></div>
+			{/if}
+		{/each}
+	</div>
 </section>
+
+{#if selected}
+	{@const info = selInfo(selected)}
+	<section class="card send-card">
+		<div class="send-title">
+			{#if info}
+				<img src={info.image} alt="" class="send-icon" />
+			{/if}
+			送出「{info?.name ?? selected}」{info?.tag ?? ''} × 1
+		</div>
+		<form method="post" action="?/send" class="flex" style="gap:8px;">
+			<input type="hidden" name="itemType" value={selected} />
+			<input
+				type="text"
+				name="username"
+				class="form-input"
+				placeholder="接收者的用户名"
+				required
+				style="max-width:240px;"
+			/>
+			<button type="submit" class="btn btn-primary btn-sm">确认送出</button>
+			<button type="button" class="btn btn-ghost btn-sm" onclick={() => (selected = null)}>
+				取消
+			</button>
+		</form>
+	</section>
+{/if}
 
 <!-- 道具明细 -->
 <section>
@@ -64,7 +126,7 @@
 			{#each data.items as it (it.id)}
 				<li class="post-item">
 					{#if it.info}
-						<img src={it.info.image} alt={it.info.name} class="flower-img flower-img-sm" />
+						<img src={it.info.image} alt={it.info.name} class="flower-img-sm" />
 					{:else}
 						<span class="avatar">🪻</span>
 					{/if}
@@ -79,74 +141,98 @@
 							)}
 						</div>
 					</div>
-					<button type="button" class="btn btn-ghost btn-sm" onclick={() => toggleSend(it.id)}>
-						💌 送人
-					</button>
 				</li>
-				{#if sendingId === it.id}
-					<li class="post-item" style="background:var(--surface-2);">
-						<form
-							method="post"
-							action="?/send"
-							use:enhance
-							class="flex"
-							style="gap:8px;width:100%;"
-						>
-							<input type="hidden" name="itemId" value={it.id} />
-							<input
-								type="text"
-								name="username"
-								class="form-input"
-								placeholder="接收者的用户名"
-								required
-								style="max-width:220px;"
-							/>
-							<button type="submit" class="btn btn-primary btn-sm">确认送出</button>
-							<button type="button" class="btn btn-ghost btn-sm" onclick={() => toggleSend(it.id)}>
-								取消
-							</button>
-						</form>
-					</li>
-				{/if}
 			{/each}
 		</ul>
 	{/if}
 </section>
 
 <style>
-	.bag-summary {
+	/* MC 物品栏风格：深色底板 + 浅灰槽框 */
+	.inventory {
+		background: linear-gradient(#3a3a3a, #232323);
+		border: 2px solid #111;
+		border-radius: 8px;
+		padding: 10px;
+		margin-bottom: 20px;
+		display: inline-block;
+		max-width: 100%;
+	}
+	.inventory-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-		gap: 12px;
-		margin-bottom: 24px;
+		grid-template-columns: repeat(9, minmax(0, 1fr));
+		gap: 4px;
 	}
-	.bag-summary-card {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 16px;
-		text-align: center;
+	.slot {
+		width: 60px;
+		height: 60px;
+		background: #1b1b1b;
+		border: 2px solid #555;
+		border-radius: 4px;
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6);
 	}
-	.flower-img {
-		width: 96px;
-		height: 96px;
+	.slot-empty {
+		border-color: #3a3a3a;
+		background: #171717;
+	}
+	.slot-filled {
+		cursor: pointer;
+	}
+	.slot-filled:hover {
+		border-color: #fff;
+		box-shadow: 0 0 6px rgba(255, 255, 255, 0.35);
+	}
+	.slot-selected {
+		border-color: #ffd166 !important;
+		box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
+	}
+	.slot-icon {
+		width: 44px;
+		height: 44px;
 		image-rendering: pixelated;
-		margin: 0 auto 8px;
-		display: block;
+		pointer-events: none;
+	}
+	.slot-unknown {
+		font-size: 28px;
+	}
+	.slot-count {
+		position: absolute;
+		right: 3px;
+		bottom: 1px;
+		color: #fff;
+		font-size: 14px;
+		font-weight: 700;
+		text-shadow:
+			1px 1px 0 #000,
+			-1px 1px 0 #000,
+			1px -1px 0 #000,
+			-1px -1px 0 #000;
+		pointer-events: none;
+	}
+	.send-card {
+		margin-bottom: 20px;
+	}
+	.send-title {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-weight: 600;
+		margin-bottom: 10px;
+	}
+	.send-icon {
+		width: 28px;
+		height: 28px;
+		image-rendering: pixelated;
 	}
 	.flower-img-sm {
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
+		image-rendering: pixelated;
 		margin: 0 12px 0 0;
-	}
-	.bag-summary-name {
-		font-weight: 600;
-		font-size: 14px;
-	}
-	.bag-summary-count {
-		color: var(--text-secondary);
-		font-size: 13px;
-		margin-top: 4px;
 	}
 	.mt-16 {
 		margin-top: 16px;

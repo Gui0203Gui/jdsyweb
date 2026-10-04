@@ -2,12 +2,11 @@ import { error, redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	createNotification,
-	getItem,
-	giftItem,
 	getUserByUsername,
+	giftItemByType,
 	listItems
 } from '#lib/server/queries';
-import { flowerInfo } from '#lib/flowers';
+import { flowerInfo, FLOWER_TYPES, type FlowerType } from '#lib/flowers';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) throw redirect(302, '/login');
@@ -36,23 +35,20 @@ export const actions: Actions = {
 	send: async ({ request, locals }) => {
 		if (!locals.user) throw error(401, '请先登录');
 		const form = await request.formData();
-		const itemId = String(form.get('itemId') ?? '');
+		const itemType = String(form.get('itemType') ?? '');
 		const toName = String(form.get('username') ?? '').trim();
 
-		if (!itemId || !toName) return fail(400, { error: '请填写接收者用户名' });
+		if (!FLOWER_TYPES.includes(itemType as FlowerType)) return fail(400, { error: '道具类型无效' });
+		if (!toName) return fail(400, { error: '请填写接收者用户名' });
 		if (toName === locals.user.username) return fail(400, { error: '不能送给自己' });
 
 		const toUser = await getUserByUsername(locals.db, toName);
 		if (!toUser) return fail(400, { error: `用户「${toName}」不存在` });
 
-		const item = await getItem(locals.db, itemId);
-		if (!item || item.ownerId !== locals.user.id)
-			return fail(400, { error: '道具不存在或不属于你' });
-
-		const result = await giftItem(locals.db, itemId, locals.user.id, toUser);
+		const result = await giftItemByType(locals.db, locals.user.id, toUser, itemType as FlowerType);
 		if (!result.ok) return fail(400, { error: result.error });
 
-		const info = flowerInfo(item.itemType);
+		const info = flowerInfo(itemType);
 		await createNotification(locals.db, {
 			userId: toUser.id,
 			actorId: locals.user.id,

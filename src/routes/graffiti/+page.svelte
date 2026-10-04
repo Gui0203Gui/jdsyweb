@@ -1,36 +1,55 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { enhance } from '$app/forms';
 
-	let { data, form }: PageProps = $props();
+	let { data }: PageProps = $props();
 
-	function fmtTime(ts: Date | number): string {
+	function fmtTime(ts: number | null): string {
+		if (!ts) return '';
 		const d = new Date(ts);
 		const p = (n: number) => String(n).padStart(2, '0');
 		return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 	}
 
-	// ---- 画板状态 ----
+	// ---- 共享画布状态 ----
 	let canvas = $state<HTMLCanvasElement | null>(null);
 	let ctx: CanvasRenderingContext2D | null = null;
 	let drawing = $state(false);
 	let color = $state('#e63946');
 	let size = $state(6);
 	let tool = $state<'brush' | 'eraser'>('brush');
-	let uploading = $state(false);
-	let uploadError = $state('');
-	let uploadOk = $state('');
+	let saving = $state(false);
+	let saveError = $state('');
+	let saveOk = $state('');
 	let lastPos: { x: number; y: number } | null = null;
+	let loaded = $state(false);
 
 	function ensureCanvas() {
 		if (!canvas || ctx) return;
 		ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		ctx.fillStyle = '#ffffff';
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		ctx.lineCap = 'round';
 		ctx.lineJoin = 'round';
 	}
+
+	/** 页面加载后把共享画布画到 canvas 上 */
+	$effect(() => {
+		if (!canvas || loaded) return;
+		ensureCanvas();
+		loaded = true;
+		if (!ctx) return;
+		const c = canvas;
+		const g = ctx;
+		// 白底
+		g.fillStyle = '#ffffff';
+		g.fillRect(0, 0, c.width, c.height);
+		if (data.wallUrl) {
+			const img = new Image();
+			img.onload = () => {
+				g.drawImage(img, 0, 0, c.width, c.height);
+			};
+			img.src = data.wallUrl;
+		}
+	});
 
 	function pos(e: PointerEvent) {
 		if (!canvas) return { x: 0, y: 0 };
@@ -73,11 +92,11 @@
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 	}
 
-	async function submit() {
-		if (!canvas || uploading) return;
-		uploading = true;
-		uploadError = '';
-		uploadOk = '';
+	async function save() {
+		if (!canvas || saving) return;
+		saving = true;
+		saveError = '';
+		saveOk = '';
 		try {
 			const dataUrl = canvas.toDataURL('image/png');
 			const res = await fetch('/api/graffiti', {
@@ -87,16 +106,14 @@
 			});
 			const j = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean };
 			if (!res.ok || !j.ok) {
-				uploadError = j.error ?? '上传失败';
+				saveError = j.error ?? '保存失败';
 			} else {
-				uploadOk = '已发布到涂鸦墙！';
-				clearCanvas();
-				setTimeout(() => location.reload(), 500);
+				saveOk = '画布已保存，大家都看得到啦！';
 			}
 		} catch {
-			uploadError = '上传失败，请重试';
+			saveError = '保存失败，请重试';
 		} finally {
-			uploading = false;
+			saving = false;
 		}
 	}
 
@@ -121,17 +138,11 @@
 
 <h1 class="page-title">🎨 涂鸦留言板</h1>
 <p class="form-hint" style="margin-bottom:16px;">
-	想画什么就画什么！画完发布到墙上；任何人都可以「擦掉」墙上的涂鸦（包括别人画的）。
+	<b>所有吧友共用这一张画布</b
+	>——你画的每一笔都会留在上面，别人接着画。橡皮擦可以擦掉任意区域（包括别人画的），保存后画布更新。
 </p>
 
-{#if form?.success}
-	<div class="form-success">{form.success}</div>
-{/if}
-{#if form?.error}
-	<div class="form-error">{form.error}</div>
-{/if}
-
-<!-- 大画板 -->
+<!-- 共享大画布 -->
 <section class="board-card">
 	<div class="board-toolbar">
 		<div class="tool-group">
@@ -173,8 +184,8 @@
 		</button>
 		<button type="button" class="btn btn-ghost btn-sm" onclick={clearCanvas}>🗑️ 清空画板</button>
 		{#if data.user}
-			<button type="button" class="btn btn-primary btn-sm" onclick={submit} disabled={uploading}>
-				{uploading ? '发布中…' : '📤 发布到涂鸦墙'}
+			<button type="button" class="btn btn-primary btn-sm" onclick={save} disabled={saving}>
+				{saving ? '保存中…' : '💾 保存画布'}
 			</button>
 		{:else}
 			<a href="/login" class="btn btn-primary btn-sm">登录后涂鸦</a>
@@ -183,53 +194,28 @@
 	{#if data.user}
 		<canvas
 			bind:this={canvas}
-			width={1100}
-			height={560}
+			width={1200}
+			height={600}
 			class="board-canvas"
 			onpointerdown={start}
 			onpointermove={move}
 			onpointerup={end}
 			onpointerleave={end}
 		></canvas>
-		<p class="form-hint">用鼠标/手指在白色画布上作画（宽度 1100px，大画布）</p>
+		<div class="wall-meta">
+			{data.editor
+				? `🧑‍🎨 最后涂鸦：${data.editor} · ${fmtTime(data.updatedAt)}`
+				: '🆕 画布还是空白，来画第一笔吧！'}
+		</div>
 	{:else}
 		<div class="card empty" style="margin:0;">
 			<div class="empty-icon">🔒</div>
-			<p>登录后即可在涂鸦墙作画</p>
+			<p>登录后即可在共享画布上涂鸦</p>
 			<div class="mt-16"><a href="/login" class="btn btn-primary">登录</a></div>
 		</div>
 	{/if}
-	{#if uploadError}<div class="form-error" style="margin-top:8px;">{uploadError}</div>{/if}
-	{#if uploadOk}<div class="form-success" style="margin-top:8px;">{uploadOk}</div>{/if}
-</section>
-
-<!-- 涂鸦墙 -->
-<section>
-	<h2 class="section-title">🧱 涂鸦墙（{data.graffiti.length}）</h2>
-	{#if data.graffiti.length === 0}
-		<div class="card empty">
-			<div class="empty-icon">🖌️</div>
-			<p>还没有涂鸦，来画第一张！</p>
-		</div>
-	{:else}
-		<div class="graffiti-grid">
-			{#each data.graffiti as g (g.id)}
-				<figure class="graffiti-card">
-					<img src={`/api/img/${g.imageKey}`} alt={`${g.author} 的涂鸦`} class="graffiti-img" />
-					<figcaption>
-						<span class="graffiti-author">✍️ {g.author}</span>
-						<span class="graffiti-time">{fmtTime(g.createdAt)}</span>
-						{#if data.user}
-							<form method="post" action="?/erase" use:enhance style="display:inline;">
-								<input type="hidden" name="id" value={g.id} />
-								<button type="submit" class="mini-btn danger">🧽 擦除</button>
-							</form>
-						{/if}
-					</figcaption>
-				</figure>
-			{/each}
-		</div>
-	{/if}
+	{#if saveError}<div class="form-error" style="margin-top:8px;">{saveError}</div>{/if}
+	{#if saveOk}<div class="form-success" style="margin-top:8px;">{saveOk}</div>{/if}
 </section>
 
 <style>
@@ -238,7 +224,6 @@
 		border: 1px solid var(--border);
 		border-radius: 14px;
 		padding: 16px;
-		margin-bottom: 24px;
 	}
 	.board-toolbar {
 		display: flex;
@@ -287,45 +272,17 @@
 	.board-canvas {
 		width: 100%;
 		height: auto;
-		max-height: 560px;
+		max-height: 600px;
 		background: #fff;
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		touch-action: none;
 		cursor: crosshair;
 	}
-	.graffiti-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-		gap: 16px;
-	}
-	.graffiti-card {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 10px;
-		margin: 0;
-	}
-	.graffiti-img {
-		width: 100%;
-		height: auto;
-		background: #fff;
-		border-radius: 8px;
-		display: block;
-	}
-	.graffiti-card figcaption {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-top: 8px;
-		font-size: 13px;
-	}
-	.graffiti-author {
-		font-weight: 600;
-	}
-	.graffiti-time {
+	.wall-meta {
+		margin-top: 10px;
 		color: var(--text-secondary);
-		flex: 1;
+		font-size: 13px;
 	}
 	.mt-16 {
 		margin-top: 16px;
