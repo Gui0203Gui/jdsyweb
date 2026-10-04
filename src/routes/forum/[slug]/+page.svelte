@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { badgeCls, badgeShort } from '#lib/flowers';
 	import type { PageData } from './$types';
 	import { formatRelativeTime } from '#lib/time';
 	import { avatarUrl } from '#lib/avatar';
@@ -53,8 +54,9 @@
 					{/if}
 					<span
 						>{item.author.username}
-						{#if item.author.badge}<span class="user-badge">【{item.author.badge}】</span>{/if} ⭐{item
-							.author.points}</span
+						{#if item.author.badge}<span class="user-badge badge-{badgeCls(item.author.badge)}"
+								>【{badgeShort(item.author.badge)}】</span
+							>{/if} ⭐{item.author.points}</span
 					>
 					<span>·</span>
 					<span>{formatRelativeTime(item.post.createdAt)}</span>
@@ -65,7 +67,13 @@
 					<span>👁 {item.post.views}</span>
 				</div>
 				{#if item.post.content}
-					<p class="post-excerpt" class:badge-speech={item.author.badge}>{item.post.content}</p>
+					<p
+						class="post-excerpt"
+						class:badge-speech={item.author.badge}
+						class:badge-cheng={badgeCls(item.author.badge) === 'cheng'}
+					>
+						{item.post.content}
+					</p>
 				{/if}
 			</li>
 		{/each}

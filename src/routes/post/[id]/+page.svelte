@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { badgeCls, badgeShort } from '#lib/flowers';
 	import type { PageProps } from './$types';
 	import { formatDateTime } from '#lib/time';
 	import { enhance } from '$app/forms';
@@ -64,7 +65,9 @@
 			{/if}
 			<span
 				>{data.author.username}
-				{#if data.author.badge}<span class="user-badge">【{data.author.badge}】</span>{/if}</span
+				{#if data.author.badge}<span class="user-badge badge-{badgeCls(data.author.badge)}"
+						>【{badgeShort(data.author.badge)}】</span
+					>{/if}</span
 			>
 			<span>·</span>
 			<span>⭐ {data.author.points} 积分</span>
@@ -75,7 +78,13 @@
 		</div>
 	</header>
 
-	<div class="post-content" class:badge-speech={data.author.badge}>{data.post.content}</div>
+	<div
+		class="post-content"
+		class:badge-speech={data.author.badge}
+		class:badge-cheng={badgeCls(data.author.badge) === 'cheng'}
+	>
+		{data.post.content}
+	</div>
 
 	{#if postImages.length > 0}
 		<div class="post-images">
@@ -129,13 +138,20 @@
 				{/if}
 				<span
 					><strong>{item.author.username}</strong>
-					{#if item.author.badge}<span class="user-badge">【{item.author.badge}】</span>{/if} ⭐{item
-						.author.points}</span
+					{#if item.author.badge}<span class="user-badge badge-{badgeCls(item.author.badge)}"
+							>【{badgeShort(item.author.badge)}】</span
+						>{/if} ⭐{item.author.points}</span
 				>
 				<span class="comment-floor">#{i + 1}楼</span>
 				<span class="comment-floor">{formatDateTime(item.comment.createdAt)}</span>
 			</div>
-			<div class="comment-body" class:badge-speech={item.author.badge}>{item.comment.content}</div>
+			<div
+				class="comment-body"
+				class:badge-speech={item.author.badge}
+				class:badge-cheng={badgeCls(item.author.badge) === 'cheng'}
+			>
+				{item.comment.content}
+			</div>
 			{#if !data.post.isLocked}
 				<form method="post" action="?/like" use:enhance class="mt-8">
 					<input type="hidden" name="targetType" value="comment" />

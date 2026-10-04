@@ -389,7 +389,7 @@ a:hover {
 }
 
 /* ---------- 称号系统 ---------- */
-/* 名字后方的称号：红色加粗 */
+/* 名字后方的称号 */
 .user-badge {
 	color: #e60000;
 	font-weight: 700;
@@ -397,7 +397,13 @@ a:hover {
 	white-space: nowrap;
 }
 
-/* 装备称号者的发言文字：红色 + 黑色描边 */
+/* 程门立雪：绿色细体、无边框 */
+.user-badge.badge-cheng {
+	color: #16a34a;
+	font-weight: 400;
+}
+
+/* 装备称号者的发言文字（国庆快乐：红色 + 黑色描边） */
 .badge-speech {
 	color: #ff2020;
 	text-shadow:
@@ -406,6 +412,13 @@ a:hover {
 		-1px 1px 0 #000,
 		1px -1px 0 #000,
 		-1px -1px 0 #000;
+}
+
+/* 程门立雪：绿色细体、无边框 */
+.badge-speech.badge-cheng {
+	color: #16a34a;
+	text-shadow: none;
+	font-weight: 400;
 }
 
 /* ---------- 表单 ---------- */

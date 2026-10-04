@@ -29,26 +29,75 @@ export type FlowerType = keyof typeof FLOWERS;
 export const FLOWER_TYPES = Object.keys(FLOWERS) as FlowerType[];
 
 /**
- * 称号道具（背包物品）展示信息。
- * 商店合成获得，可穿戴/脱下，可赠送给其他用户。
+ * 称号道具展示信息（背包物品，可穿戴/脱下/赠送）。
+ * cls 决定全站渲染样式：
+ *  - nat（国庆快乐）：红色加粗、发言红色黑框
+ *  - cheng（程门立雪）：绿色细体、无边框
  */
-export const BADGE_INFO = {
-	key: 'badge:national',
-	name: '称号·国庆快乐',
-	shortName: '国庆快乐',
-	tag: '绝版',
-	icon: '🏅'
+export type BadgeInfo = {
+	key: string;
+	name: string;
+	shortName: string;
+	tag: string;
+	icon: string;
+	cls: 'nat' | 'cheng';
+};
+
+export const BADGE_INFOS = {
+	'badge:national': {
+		key: 'badge:national',
+		name: '称号·国庆快乐',
+		shortName: '国庆快乐',
+		tag: '绝版',
+		icon: '🏅',
+		cls: 'nat'
+	},
+	'badge:chengmen': {
+		key: 'badge:chengmen',
+		name: '称号·程门立雪',
+		shortName: '程门立雪',
+		tag: '绝版',
+		icon: '❄️',
+		cls: 'cheng'
+	}
 } as const;
 
-export type ItemType = FlowerType | (typeof BADGE_INFO)['key'];
+export type BadgeType = keyof typeof BADGE_INFOS;
 
-/** 根据道具类型取展示信息（花或称号；未知类型返回空） */
-export function itemInfo(itemType: string) {
-	if (itemType === BADGE_INFO.key) return BADGE_INFO;
-	return FLOWERS[itemType as FlowerType] ?? null;
+export const BADGE_TYPES = Object.keys(BADGE_INFOS) as BadgeType[];
+
+/** 旧数据兼容：users.badge 曾直接存称号中文名 */
+const LEGACY_BADGE_NAMES: Record<string, BadgeType> = {
+	国庆快乐: 'badge:national'
+};
+
+/** 根据 users.badge 字段（称号 key）取展示信息；无效/空返回 null */
+export function badgeInfo(badgeKey: string | null | undefined): BadgeInfo | null {
+	if (!badgeKey) return null;
+	const key = LEGACY_BADGE_NAMES[badgeKey] ?? badgeKey;
+	return (BADGE_INFOS as Record<string, BadgeInfo>)[key] ?? null;
 }
 
-/** 根据道具类型取展示信息（仅花；未知类型返回空，兼容旧调用） */
+/** 称号短名（名字后方显示） */
+export function badgeShort(badgeKey: string | null | undefined): string {
+	return badgeInfo(badgeKey)?.shortName ?? '称号';
+}
+
+/** 称号样式类（nat / cheng） */
+export function badgeCls(badgeKey: string | null | undefined): string {
+	return badgeInfo(badgeKey)?.cls ?? 'nat';
+}
+
+export type ItemType = FlowerType | BadgeType;
+
+/** 根据道具类型取展示信息（花或称号；未知类型返回 null） */
+export function itemInfo(itemType: string) {
+	return (
+		(BADGE_INFOS as Record<string, BadgeInfo>)[itemType] ?? FLOWERS[itemType as FlowerType] ?? null
+	);
+}
+
+/** 根据道具类型取展示信息（仅花；未知类型返回 null，兼容旧调用） */
 export function flowerInfo(itemType: string) {
 	return FLOWERS[itemType as FlowerType] ?? null;
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { badgeCls, badgeShort } from '#lib/flowers';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -45,7 +46,9 @@
 				<div class="post-meta">
 					<span
 						>{row.author.username}
-						{#if row.author.badge}<span class="user-badge">【{row.author.badge}】</span>{/if}</span
+						{#if row.author.badge}<span class="user-badge badge-{badgeCls(row.author.badge)}"
+								>【{badgeShort(row.author.badge)}】</span
+							>{/if}</span
 					>
 					<span>💬 {row.commentCount}</span>
 					<span>👍 {row.likeCount}</span>
@@ -53,7 +56,13 @@
 					<span>{fmtDate(row.post.createdAt)}</span>
 				</div>
 				{#if row.post.content}
-					<div class="post-excerpt" class:badge-speech={row.author.badge}>{row.post.content}</div>
+					<div
+						class="post-excerpt"
+						class:badge-speech={row.author.badge}
+						class:badge-cheng={badgeCls(row.author.badge) === 'cheng'}
+					>
+						{row.post.content}
+					</div>
 				{/if}
 			</li>
 		{:else}

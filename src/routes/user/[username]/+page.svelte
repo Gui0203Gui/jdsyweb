@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { badgeCls, badgeShort } from '#lib/flowers';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -32,8 +33,9 @@
 		<div class="profile-info">
 			<div class="profile-name">
 				{data.profile.user.username}
-				{#if data.profile.user.badge}<span class="user-badge" style="margin-left:6px;"
-						>【{data.profile.user.badge}】</span
+				{#if data.profile.user.badge}<span
+						class="user-badge badge-{badgeCls(data.profile.user.badge)}"
+						style="margin-left:6px;">【{badgeShort(data.profile.user.badge)}】</span
 					>{/if}
 				{#if data.profile.user.role === 'admin'}
 					<span class="tag admin" style="margin-left:8px;">管理员</span>

@@ -1,10 +1,18 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { BADGE_INFO, FLOWERS, type FlowerType } from '#lib/flowers';
+	import {
+		BADGE_INFOS,
+		BADGE_TYPES,
+		FLOWERS,
+		itemInfo,
+		type BadgeType,
+		type FlowerType
+	} from '#lib/flowers';
 
 	let { data, form }: PageProps = $props();
 
 	const FLOWER_LIST = Object.values(FLOWERS);
+	const BADGE_LIST = Object.values(BADGE_INFOS);
 
 	// MC 物品栏：固定 9 列网格，只放拥有的道具，其余为暗色空槽
 	const SLOTS_PER_ROW = 9;
@@ -18,13 +26,11 @@
 		);
 		const arr: { type: string | null; info: SlotInfo | null; n: number; equipped: boolean }[] = [];
 		for (const c of data.counts) {
-			const info =
-				c.info ?? (c.type === BADGE_INFO.key ? (BADGE_INFO as unknown as SlotInfo) : null);
 			arr.push({
 				type: c.type,
-				info,
+				info: c.info as SlotInfo | null,
 				n: c.n,
-				equipped: c.type === BADGE_INFO.key && data.equippedBadge
+				equipped: c.type.startsWith('badge:') && c.type === data.equippedBadge
 			});
 		}
 		while (arr.length < total) {
@@ -38,20 +44,21 @@
 		selected = selected === type ? null : type;
 	}
 
-	const isBadgeSel = $derived(selected === BADGE_INFO.key);
+	const isBadgeSel = $derived(selected ? BADGE_TYPES.includes(selected as BadgeType) : false);
 	const selInfo = $derived<SlotInfo | null>(
-		selected
-			? (FLOWERS[selected as FlowerType] ?? (selected === BADGE_INFO.key ? BADGE_INFO : null))
-			: null
+		selected ? (itemInfo(selected) as SlotInfo | null) : null
+	);
+	const selBadgeKey = $derived<BadgeType | null>(
+		selected && BADGE_TYPES.includes(selected as BadgeType) ? (selected as BadgeType) : null
 	);
 
 	// 送称号：优先送未装备的那件；若全部装备中则送装备件（发送后自动脱下）
 	const badgeSendItem = $derived(
-		data.items.find((it) => it.itemType === BADGE_INFO.key && !it.equipped) ??
-			data.items.find((it) => it.itemType === BADGE_INFO.key)
+		data.items.find((it) => it.itemType.startsWith('badge:') && !it.equipped) ??
+			data.items.find((it) => it.itemType.startsWith('badge:'))
 	);
 	const badgeEquipItem = $derived(
-		data.items.find((it) => it.itemType === BADGE_INFO.key && !it.equipped)
+		data.items.find((it) => it.itemType.startsWith('badge:') && !it.equipped)
 	);
 
 	function fmtDate(ts: Date | number): string {
@@ -71,6 +78,8 @@
 				return '🛒 商店购买';
 			case 'craft':
 				return '🔨 商店合成';
+			case 'admin':
+				return '🛠️ 管理员发放';
 			default:
 				return source;
 		}
@@ -125,24 +134,26 @@
 
 {#if selected}
 	<section class="card send-card">
-		{#if isBadgeSel}
+		{#if isBadgeSel && selBadgeKey}
 			<div class="send-title">
-				<span class="slot-icon slot-emoji" style="font-size:24px;">{BADGE_INFO.icon}</span>
-				称号【{BADGE_INFO.shortName}】{BADGE_INFO.tag}
-				{#if data.equippedBadge}
+				<span class="slot-icon slot-emoji" style="font-size:24px;"
+					>{BADGE_INFOS[selBadgeKey].icon}</span
+				>
+				称号【{BADGE_INFOS[selBadgeKey].shortName}】{BADGE_INFOS[selBadgeKey].tag}
+				{#if data.equippedBadge === selBadgeKey}
 					<span class="tag" style="background:#16a34a;color:#fff;">已装备</span>
 				{:else}
 					<span class="tag">未装备</span>
 				{/if}
 			</div>
 			<div class="send-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-				{#if badgeEquipItem && !data.equippedBadge}
+				{#if badgeEquipItem && data.equippedBadge !== selBadgeKey}
 					<form method="post" action="?/equip">
 						<input type="hidden" name="itemId" value={badgeEquipItem.id} />
 						<button type="submit" class="btn btn-primary btn-sm">穿戴称号</button>
 					</form>
 				{/if}
-				{#if data.equippedBadge}
+				{#if data.equippedBadge === selBadgeKey}
 					<form method="post" action="?/unequip">
 						<button type="submit" class="btn btn-ghost btn-sm">脱下称号</button>
 					</form>
@@ -190,6 +201,30 @@
 	</section>
 {/if}
 
+<!-- 管理员取物栏 -->
+{#if data.isAdmin}
+	<section class="card" style="margin-bottom:20px;">
+		<h2 class="section-title">🔧 管理员取物栏</h2>
+		<p class="form-hint" style="margin-bottom:12px;">
+			仅管理员可见：可无限领取物品放入自己背包（每点一次领取 1 个），之后可赠送给其他吧友。
+		</p>
+		<div class="take-grid">
+			{#each [...FLOWER_LIST, ...BADGE_LIST] as item (item.key)}
+				<form method="post" action="?/takeItem" class="take-item">
+					<input type="hidden" name="itemType" value={item.key} />
+					{#if 'image' in item && item.image}
+						<img src={item.image} alt="" class="take-icon" />
+					{:else}
+						<span class="take-icon" style="font-size:24px;line-height:1;">{item.icon}</span>
+					{/if}
+					<span class="take-name">{item.name}</span>
+					<button type="submit" class="btn btn-primary btn-sm">＋1</button>
+				</form>
+			{/each}
+		</div>
+	</section>
+{/if}
+
 <!-- 道具明细 -->
 <section>
 	<h2 class="section-title">🧺 道具明细</h2>
@@ -205,19 +240,15 @@
 				<li class="post-item">
 					{#if it.info?.image}
 						<img src={it.info.image} alt={it.info.name} class="flower-img-sm" />
-					{:else if it.itemType === BADGE_INFO.key}
-						<span class="avatar" style="font-size:24px;">{BADGE_INFO.icon}</span>
+					{:else if it.itemType.startsWith('badge:')}
+						<span class="avatar" style="font-size:24px;">{it.info?.icon ?? '🏅'}</span>
 					{:else}
 						<span class="avatar">🪻</span>
 					{/if}
 					<div class="teacher-info" style="flex:1;">
 						<div class="teacher-name">
-							{it.itemType === BADGE_INFO.key
-								? `称号【${BADGE_INFO.shortName}】`
-								: (it.info?.name ?? it.itemType)}
-							<span class="tag">
-								{it.itemType === BADGE_INFO.key ? BADGE_INFO.tag : (it.info?.tag ?? '道具')}
-							</span>
+							{it.info?.name ?? it.itemType}
+							<span class="tag">{it.info?.tag ?? '道具'}</span>
 							{#if it.equipped}
 								<span class="tag" style="background:#16a34a;color:#fff;">已装备</span>
 							{/if}
@@ -338,6 +369,34 @@
 		height: 40px;
 		image-rendering: pixelated;
 		margin: 0 12px 0 0;
+	}
+	.take-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: 10px;
+	}
+	.take-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		background: #f6f8fa;
+		border: 1px solid #e2e8f0;
+		border-radius: 8px;
+		padding: 10px 12px;
+	}
+	.take-icon {
+		width: 32px;
+		height: 32px;
+		image-rendering: pixelated;
+		flex: none;
+	}
+	.take-name {
+		flex: 1;
+		font-size: 13px;
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.mt-16 {
 		margin-top: 16px;

@@ -756,8 +756,8 @@ export async function deleteGraffiti(db: Db, graffitiId: string) {
 // ---------- 商店系统 ----------
 
 export const SHOP_FLOWER_PRICE = 25; // 商店买花价格（积分）
-export const BADGE_NAME = '国庆快乐'; // 合成称号
-export const BADGE_ITEM_TYPE = 'badge:national' as FlowerType; // 称号在背包中的道具类型
+export const BADGE_NATIONAL_KEY = 'badge:national'; // 合成称号（国庆快乐）
+export const BADGE_ITEM_TYPE = BADGE_NATIONAL_KEY as FlowerType; // 合成称号在背包中的道具类型
 export const BADGE_FLOWERS: FlowerType[] = [
 	'flower:poppy',
 	'flower:cornflower',
@@ -776,13 +776,15 @@ export async function getShopStatus(db: Db, userId: string) {
 		.from(items)
 		.where(eq(items.ownerId, userId));
 	const counts: Record<string, number> = {};
+	let badgeCount = 0;
 	for (const r of rows) {
 		counts[r.type] = (counts[r.type] ?? 0) + 1;
+		if (r.type.startsWith('badge:')) badgeCount += 1;
 	}
 	return {
 		points: user?.points ?? 0,
 		badge: user?.badge ?? null,
-		badgeCount: counts[BADGE_ITEM_TYPE] ?? 0,
+		badgeCount,
 		counts
 	};
 }
@@ -822,25 +824,30 @@ export async function craftBadge(db: Db, userId: string) {
 		equipped
 	});
 	if (equipped) {
-		await db.update(users).set({ badge: BADGE_NAME }).where(eq(users.id, userId));
+		await db.update(users).set({ badge: BADGE_NATIONAL_KEY }).where(eq(users.id, userId));
 	}
-	return { ok: true, badge: BADGE_NAME, equipped };
+	return { ok: true, badge: BADGE_NATIONAL_KEY, equipped };
 }
 
-/** 穿戴称号道具：卸下当前装备的称号，装备指定道具 */
+/** 穿戴称号道具：卸下当前装备的称号，装备指定道具（users.badge 存称号 key） */
 export async function equipBadge(db: Db, userId: string, itemId: string) {
 	const item = await db
-		.select()
+		.select({ itemType: items.itemType })
 		.from(items)
 		.where(
-			and(eq(items.id, itemId), eq(items.ownerId, userId), eq(items.itemType, BADGE_ITEM_TYPE))
+			and(
+				eq(items.id, itemId),
+				eq(items.ownerId, userId),
+				sql`${items.itemType} LIKE 'badge:%'`,
+				eq(items.equipped, false)
+			)
 		)
 		.get();
-	if (!item) return { ok: false, error: '称号道具不存在或不属于你' };
+	if (!item) return { ok: false, error: '称号道具不存在或不属于你，或已装备中' };
 	await db.update(items).set({ equipped: false }).where(eq(items.ownerId, userId));
 	await db.update(items).set({ equipped: true }).where(eq(items.id, itemId));
-	await db.update(users).set({ badge: BADGE_NAME }).where(eq(users.id, userId));
-	return { ok: true, badge: BADGE_NAME };
+	await db.update(users).set({ badge: item.itemType }).where(eq(users.id, userId));
+	return { ok: true, badge: item.itemType };
 }
 
 /** 脱下称号：称号道具仍在背包，仅取消装备 */
@@ -849,7 +856,11 @@ export async function unequipBadge(db: Db, userId: string) {
 		.select({ id: items.id })
 		.from(items)
 		.where(
-			and(eq(items.ownerId, userId), eq(items.itemType, BADGE_ITEM_TYPE), eq(items.equipped, true))
+			and(
+				eq(items.ownerId, userId),
+				sql`${items.itemType} LIKE 'badge:%'`,
+				eq(items.equipped, true)
+			)
 		)
 		.limit(1)
 		.get();
@@ -870,7 +881,11 @@ export async function giftBadgeItem(
 		.select()
 		.from(items)
 		.where(
-			and(eq(items.id, itemId), eq(items.ownerId, fromUserId), eq(items.itemType, BADGE_ITEM_TYPE))
+			and(
+				eq(items.id, itemId),
+				eq(items.ownerId, fromUserId),
+				sql`${items.itemType} LIKE 'badge:%'`
+			)
 		)
 		.get();
 	if (!item) return { ok: false, error: '称号道具不存在或不属于你' };
@@ -901,4 +916,14 @@ export async function buyFlower(db: Db, userId: string, itemType: FlowerType) {
 		.values({ userId, change: -SHOP_FLOWER_PRICE, reason: 'shop', refId: itemType });
 	await db.insert(items).values({ ownerId: userId, itemType, source: 'shop' });
 	return { ok: true, points: points - SHOP_FLOWER_PRICE };
+}
+
+/** 管理员取物栏：向自己背包发放任意物品（不检查数量上限，无限领取） */
+export async function adminTakeItem(db: Db, userId: string, itemType: string) {
+	await db.insert(items).values({
+		ownerId: userId,
+		itemType: itemType as (typeof items.$inferInsert)['itemType'],
+		source: 'admin'
+	});
+	return { ok: true };
 }

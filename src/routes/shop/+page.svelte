@@ -1,10 +1,11 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { FLOWERS, type FlowerType } from '#lib/flowers';
+	import { BADGE_INFOS, FLOWERS, badgeCls, badgeShort, type FlowerType } from '#lib/flowers';
 
 	let { data, form }: PageProps = $props();
 
 	const FLOWER_LIST = Object.values(FLOWERS);
+	const NAT_BADGE = BADGE_INFOS['badge:national'];
 	const price = 25;
 
 	const nOf = $derived((t: string) => data.counts[t] ?? 0);
@@ -52,7 +53,9 @@
 		<span class="wallet-label">🏅 称号</span>
 		<span class="wallet-value">
 			{#if data.badge}
-				<span class="user-badge">【{data.badge}】已装备</span>
+				<span class="user-badge badge-{badgeCls(data.badge)}"
+					>【{badgeShort(data.badge)}】已装备</span
+				>
 			{:else}
 				未装备
 			{/if}
@@ -66,8 +69,10 @@
 <!-- 交易①：合成称号 -->
 <section class="card trade-card">
 	<div class="trade-head">
-		<div class="trade-title">🏅 合成称号【国庆快乐】</div>
-		<div class="trade-sub">合成后称号【国庆快乐】放入背包，可穿戴 / 脱下，也可赠送给其他吧友</div>
+		<div class="trade-title">🏅 合成称号【{NAT_BADGE.shortName}】</div>
+		<div class="trade-sub">
+			合成后称号【{NAT_BADGE.shortName}】放入背包，可穿戴 / 脱下，也可赠送给其他吧友
+		</div>
 	</div>
 	<div class="trade-recipe">
 		{#each ['flower:poppy', 'flower:cornflower', 'flower:dandelion'] as t (t)}
@@ -79,7 +84,7 @@
 		{/each}
 		<span class="recipe-arrow">→</span>
 		<div class="recipe-result">
-			<span class="user-badge" style="font-size:16px;">【国庆快乐】</span>
+			<span class="user-badge" style="font-size:16px;">【{NAT_BADGE.shortName}】</span>
 		</div>
 	</div>
 	<form method="post" action="?/craft">

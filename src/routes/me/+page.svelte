@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { badgeCls, badgeShort } from '#lib/flowers';
 	import type { PageProps } from './$types';
 	import { enhance } from '$app/forms';
 
@@ -68,8 +69,9 @@
 		<div class="profile-info">
 			<div class="profile-name">
 				{data.profile.user.username}
-				{#if data.profile.user.badge}<span class="user-badge" style="margin-left:6px;"
-						>【{data.profile.user.badge}】</span
+				{#if data.profile.user.badge}<span
+						class="user-badge badge-{badgeCls(data.profile.user.badge)}"
+						style="margin-left:6px;">【{badgeShort(data.profile.user.badge)}】</span
 					>{/if}
 				{#if data.profile.user.role === 'admin'}
 					<span class="tag admin" style="margin-left:8px;">管理员</span>
@@ -151,7 +153,9 @@
 				<div class="post-meta">
 					<span
 						>作者：{row.author.username}
-						{#if row.author.badge}<span class="user-badge">【{row.author.badge}】</span>{/if}</span
+						{#if row.author.badge}<span class="user-badge badge-{badgeCls(row.author.badge)}"
+								>【{badgeShort(row.author.badge)}】</span
+							>{/if}</span
 					>
 					<span>💬 {row.commentCount}</span>
 				</div>
