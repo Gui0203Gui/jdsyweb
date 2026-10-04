@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import {
 	createNotification,
 	getPostDetail,
+	hasPointsFor,
 	incrementPostViews,
 	isPostFavorited,
 	listComments,
@@ -84,9 +85,12 @@ export const actions: Actions = {
 		if (!targetId) return fail(400, { error: '缺少点赞目标' });
 
 		const liked = await toggleLike(locals.db, locals.user.id, targetType, targetId);
-		// 点赞成功才加分（取消点赞不扣分）
+		// 点赞成功才加分；同一用户对同一目标的点赞只计一次积分（取消再点赞不再加分，防止刷分）
 		if (liked) {
-			await awardPoints(locals.db, locals.user.id, 'like', targetId);
+			const already = await hasPointsFor(locals.db, locals.user.id, 'like', targetId);
+			if (!already) {
+				await awardPoints(locals.db, locals.user.id, 'like', targetId);
+			}
 
 			// 通知被点赞者（自己赞自己不通知）
 			let ownerId: string | null = null;
@@ -131,9 +135,12 @@ export const actions: Actions = {
 		if (!postId) return fail(400, { error: '缺少帖子' });
 
 		const favorited = await toggleFavorite(locals.db, locals.user.id, postId);
-		// 收藏成功才加分（取消收藏不扣分）
+		// 收藏成功才加分；同一用户对同一帖子的收藏只计一次积分（取消再收藏不再加分，防止刷分）
 		if (favorited) {
-			await awardPoints(locals.db, locals.user.id, 'favorite', postId);
+			const already = await hasPointsFor(locals.db, locals.user.id, 'favorite', postId);
+			if (!already) {
+				await awardPoints(locals.db, locals.user.id, 'favorite', postId);
+			}
 
 			// 通知楼主（自己收藏自己的帖子不通知）
 			const detail = await getPostDetail(locals.db, postId);

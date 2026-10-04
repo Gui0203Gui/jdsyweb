@@ -205,6 +205,23 @@ export async function listComments(db: Db, postId: string) {
 
 // ---------- 点赞 ----------
 
+/** 该用户对某目标是否已获得过某类积分（点赞/收藏防重复刷分） */
+export async function hasPointsFor(
+	db: Db,
+	userId: string,
+	reason: 'like' | 'favorite',
+	refId: string
+) {
+	const row = await db
+		.select({ id: pointLogs.id })
+		.from(pointLogs)
+		.where(
+			and(eq(pointLogs.userId, userId), eq(pointLogs.reason, reason), eq(pointLogs.refId, refId))
+		)
+		.get();
+	return Boolean(row);
+}
+
 export async function toggleLike(
 	db: Db,
 	userId: string,
