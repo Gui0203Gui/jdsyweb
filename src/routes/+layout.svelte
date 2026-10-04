@@ -25,15 +25,6 @@
 				<span class="brand-tag">民间贴吧</span>
 			</a>
 
-			<nav class="forum-nav">
-				{#each data.forums as forum (forum.id)}
-					<a href={`/forum/${forum.slug}`} class="forum-link">
-						<span class="forum-icon">{forum.icon}</span>
-						{forum.name}
-					</a>
-				{/each}
-			</nav>
-
 			<div class="topbar-actions">
 				<form action="/search" method="get" class="search-form">
 					<input type="search" name="q" placeholder="搜索帖子…" class="search-input" />

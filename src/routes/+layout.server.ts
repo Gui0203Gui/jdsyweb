@@ -1,12 +1,10 @@
 import type { LayoutServerLoad } from './$types';
-import { countUnreadNotifications, listForums } from '#lib/server/queries';
+import { countUnreadNotifications } from '#lib/server/queries';
 import { todayStr } from '#lib/server/points';
 import { signIns } from '#lib/server/db/schema';
 import { and, eq } from 'drizzle-orm';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
-	const forums = await listForums(locals.db);
-
 	// 登录用户附带积分、今日签到状态与未读通知数
 	let user = null;
 	if (locals.user) {
@@ -29,5 +27,5 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		};
 	}
 
-	return { user, forums };
+	return { user };
 };

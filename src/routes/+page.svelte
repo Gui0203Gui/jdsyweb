@@ -36,6 +36,42 @@
 	</section>
 {/if}
 
+<section class="mb-16">
+	<h2 class="section-title">🧭 站点导航</h2>
+	<div class="forum-grid">
+		<a
+			href="https://www.bilibili.com/"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="forum-card"
+		>
+			<div class="forum-card-icon">📺</div>
+			<div class="forum-card-name">哔哩哔哩</div>
+			<div class="forum-card-desc">视频弹幕网站，追番、看视频、找教程</div>
+		</a>
+		<a
+			href="https://afdian.com/a/LTCat"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="forum-card"
+		>
+			<div class="forum-card-icon">🚀</div>
+			<div class="forum-card-name">爱发电 · 龙腾猫跃</div>
+			<div class="forum-card-desc">PCL 启动器（PCL2）官方下载主页</div>
+		</a>
+		<a
+			href="http://ws.imc.rc/eaglecraft/"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="forum-card"
+		>
+			<div class="forum-card-icon">🧱</div>
+			<div class="forum-card-name">Eaglecraft 网页版</div>
+			<div class="forum-card-desc">浏览器里直接玩我的世界（网页版 MC）</div>
+		</a>
+	</div>
+</section>
+
 {#if data.works.length > 0}
 	<section class="mb-16">
 		<div class="flex-between">
