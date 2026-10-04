@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { FLOWERS, type FlowerType } from '#lib/flowers';
+	import { BADGE_INFO, FLOWERS, type FlowerType } from '#lib/flowers';
 
 	let { data, form }: PageProps = $props();
 
@@ -8,22 +8,27 @@
 
 	// MC 物品栏：固定 9 列网格，只放拥有的道具，其余为暗色空槽
 	const SLOTS_PER_ROW = 9;
-	// 槽位按 9 的倍数补齐（最少 1 行 9 格）：只放拥有的道具，空槽补位
+
+	type SlotInfo = { name: string; icon?: string; image?: string; tag: string };
+
 	const slots = $derived.by(() => {
 		const total = Math.max(
 			SLOTS_PER_ROW,
 			Math.ceil(data.counts.length / SLOTS_PER_ROW) * SLOTS_PER_ROW
 		);
-		const arr: {
-			type: string | null;
-			info: (typeof FLOWERS)[keyof typeof FLOWERS] | null;
-			n: number;
-		}[] = [];
+		const arr: { type: string | null; info: SlotInfo | null; n: number; equipped: boolean }[] = [];
 		for (const c of data.counts) {
-			arr.push({ type: c.type, info: c.info, n: c.n });
+			const info =
+				c.info ?? (c.type === BADGE_INFO.key ? (BADGE_INFO as unknown as SlotInfo) : null);
+			arr.push({
+				type: c.type,
+				info,
+				n: c.n,
+				equipped: c.type === BADGE_INFO.key && data.equippedBadge
+			});
 		}
 		while (arr.length < total) {
-			arr.push({ type: null, info: null, n: 0 });
+			arr.push({ type: null, info: null, n: 0, equipped: false });
 		}
 		return arr;
 	});
@@ -33,6 +38,22 @@
 		selected = selected === type ? null : type;
 	}
 
+	const isBadgeSel = $derived(selected === BADGE_INFO.key);
+	const selInfo = $derived<SlotInfo | null>(
+		selected
+			? (FLOWERS[selected as FlowerType] ?? (selected === BADGE_INFO.key ? BADGE_INFO : null))
+			: null
+	);
+
+	// 送称号：优先送未装备的那件；若全部装备中则送装备件（发送后自动脱下）
+	const badgeSendItem = $derived(
+		data.items.find((it) => it.itemType === BADGE_INFO.key && !it.equipped) ??
+			data.items.find((it) => it.itemType === BADGE_INFO.key)
+	);
+	const badgeEquipItem = $derived(
+		data.items.find((it) => it.itemType === BADGE_INFO.key && !it.equipped)
+	);
+
 	function fmtDate(ts: Date | number): string {
 		const d = new Date(ts);
 		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -40,7 +61,20 @@
 		).padStart(2, '0')}`;
 	}
 
-	const selInfo = (t: string | null) => FLOWERS[t as FlowerType] ?? null;
+	function srcName(source: string): string {
+		switch (source) {
+			case 'festival-signin':
+				return '🎁 国庆签到';
+			case 'gift':
+				return '💌 好友赠送';
+			case 'shop':
+				return '🛒 商店购买';
+			case 'craft':
+				return '🔨 商店合成';
+			default:
+				return source;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -49,7 +83,7 @@
 
 <h1 class="page-title">🎒 我的背包</h1>
 <p class="form-hint" style="margin-bottom:16px;">
-	绝版花朵道具存放在这里。点击格子可以选择送给其他吧友。
+	绝版花朵与称号道具存放在这里。点击格子可以选择送给其他吧友；称号道具可以穿戴 / 脱下。
 </p>
 
 {#if form?.success}
@@ -68,15 +102,19 @@
 					type="button"
 					class="slot slot-filled"
 					class:slot-selected={selected === slot.type}
+					class:slot-equipped={slot.equipped}
 					onclick={() => pick(slot.type!)}
-					title={`${slot.info?.name ?? slot.type} × ${slot.n}`}
+					title={`${slot.info?.name ?? slot.type} × ${slot.n}${slot.equipped ? '（已装备）' : ''}`}
 				>
-					{#if slot.info}
+					{#if slot.info?.image}
 						<img src={slot.info.image} alt={slot.info.name} class="slot-icon" />
 					{:else}
-						<span class="slot-icon slot-unknown">🪻</span>
+						<span class="slot-icon slot-emoji">{slot.info?.icon ?? '🪻'}</span>
 					{/if}
 					<span class="slot-count">{slot.n}</span>
+					{#if slot.equipped}
+						<span class="slot-equipped-tag">装</span>
+					{/if}
 				</button>
 			{:else}
 				<div class="slot slot-empty" aria-hidden="true"></div>
@@ -86,29 +124,69 @@
 </section>
 
 {#if selected}
-	{@const info = selInfo(selected)}
 	<section class="card send-card">
-		<div class="send-title">
-			{#if info}
-				<img src={info.image} alt="" class="send-icon" />
+		{#if isBadgeSel}
+			<div class="send-title">
+				<span class="slot-icon slot-emoji" style="font-size:24px;">{BADGE_INFO.icon}</span>
+				称号【{BADGE_INFO.shortName}】{BADGE_INFO.tag}
+				{#if data.equippedBadge}
+					<span class="tag" style="background:#16a34a;color:#fff;">已装备</span>
+				{:else}
+					<span class="tag">未装备</span>
+				{/if}
+			</div>
+			<div class="send-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+				{#if badgeEquipItem && !data.equippedBadge}
+					<form method="post" action="?/equip">
+						<input type="hidden" name="itemId" value={badgeEquipItem.id} />
+						<button type="submit" class="btn btn-primary btn-sm">穿戴称号</button>
+					</form>
+				{/if}
+				{#if data.equippedBadge}
+					<form method="post" action="?/unequip">
+						<button type="submit" class="btn btn-ghost btn-sm">脱下称号</button>
+					</form>
+				{/if}
+			</div>
+			{#if badgeSendItem}
+				<form method="post" action="?/sendBadge" class="flex" style="gap:8px;">
+					<input type="hidden" name="itemId" value={badgeSendItem.id} />
+					<input
+						type="text"
+						name="username"
+						class="form-input"
+						placeholder="接收者的用户名"
+						required
+						style="max-width:240px;"
+					/>
+					<button type="submit" class="btn btn-primary btn-sm">送称号给 TA</button>
+				</form>
 			{/if}
-			送出「{info?.name ?? selected}」{info?.tag ?? ''} × 1
-		</div>
-		<form method="post" action="?/send" class="flex" style="gap:8px;">
-			<input type="hidden" name="itemType" value={selected} />
-			<input
-				type="text"
-				name="username"
-				class="form-input"
-				placeholder="接收者的用户名"
-				required
-				style="max-width:240px;"
-			/>
-			<button type="submit" class="btn btn-primary btn-sm">确认送出</button>
+		{:else}
+			<div class="send-title">
+				{#if selInfo?.image}
+					<img src={selInfo.image} alt="" class="send-icon" />
+				{/if}
+				送出「{selInfo?.name ?? selected}」{selInfo?.tag ?? ''} × 1
+			</div>
+			<form method="post" action="?/send" class="flex" style="gap:8px;">
+				<input type="hidden" name="itemType" value={selected} />
+				<input
+					type="text"
+					name="username"
+					class="form-input"
+					placeholder="接收者的用户名"
+					required
+					style="max-width:240px;"
+				/>
+				<button type="submit" class="btn btn-primary btn-sm">确认送出</button>
+			</form>
+		{/if}
+		<div style="margin-top:10px;">
 			<button type="button" class="btn btn-ghost btn-sm" onclick={() => (selected = null)}>
 				取消
 			</button>
-		</form>
+		</div>
 	</section>
 {/if}
 
@@ -125,20 +203,27 @@
 		<ul class="post-list">
 			{#each data.items as it (it.id)}
 				<li class="post-item">
-					{#if it.info}
+					{#if it.info?.image}
 						<img src={it.info.image} alt={it.info.name} class="flower-img-sm" />
+					{:else if it.itemType === BADGE_INFO.key}
+						<span class="avatar" style="font-size:24px;">{BADGE_INFO.icon}</span>
 					{:else}
 						<span class="avatar">🪻</span>
 					{/if}
 					<div class="teacher-info" style="flex:1;">
 						<div class="teacher-name">
-							{it.info?.name ?? it.itemType}
-							<span class="tag">{it.info?.tag ?? '道具'}</span>
+							{it.itemType === BADGE_INFO.key
+								? `称号【${BADGE_INFO.shortName}】`
+								: (it.info?.name ?? it.itemType)}
+							<span class="tag">
+								{it.itemType === BADGE_INFO.key ? BADGE_INFO.tag : (it.info?.tag ?? '道具')}
+							</span>
+							{#if it.equipped}
+								<span class="tag" style="background:#16a34a;color:#fff;">已装备</span>
+							{/if}
 						</div>
 						<div class="teacher-desc">
-							来源：{it.source === 'festival-signin' ? '🎁 国庆签到' : '💌 好友赠送'} · 获得于 {fmtDate(
-								it.createdAt
-							)}
+							来源：{srcName(it.source)} · 获得于 {fmtDate(it.createdAt)}
 						</div>
 					</div>
 				</li>
@@ -190,14 +275,22 @@
 		border-color: #ffd166 !important;
 		box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
 	}
+	.slot-equipped {
+		border-color: #4ade80;
+		box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+	}
 	.slot-icon {
 		width: 44px;
 		height: 44px;
 		image-rendering: pixelated;
 		pointer-events: none;
 	}
-	.slot-unknown {
-		font-size: 28px;
+	.slot-emoji {
+		font-size: 32px;
+		line-height: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 	.slot-count {
 		position: absolute;
@@ -211,6 +304,18 @@
 			-1px 1px 0 #000,
 			1px -1px 0 #000,
 			-1px -1px 0 #000;
+		pointer-events: none;
+	}
+	.slot-equipped-tag {
+		position: absolute;
+		left: 3px;
+		top: 2px;
+		background: #16a34a;
+		color: #fff;
+		font-size: 11px;
+		font-weight: 700;
+		padding: 0 4px;
+		border-radius: 3px;
 		pointer-events: none;
 	}
 	.send-card {

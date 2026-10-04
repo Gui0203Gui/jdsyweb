@@ -9,20 +9,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		points: status.points,
 		badge: status.badge,
+		badgeCount: status.badgeCount,
 		counts: status.counts,
 		username: locals.user.username
 	};
 };
 
 export const actions: Actions = {
-	/** 交易①：合成称号（3 花换称号） */
+	/** 交易①：合成称号（3 花换称号道具，入背包；未装备时自动穿戴） */
 	craft: async ({ locals }) => {
 		if (!locals.user) throw error(401, '请先登录');
-		const status = await getShopStatus(locals.db, locals.user.id);
-		if (status.badge) return fail(400, { error: '你已经拥有称号，无需重复合成' });
 		const result = await craftBadge(locals.db, locals.user.id);
 		if (!result.ok) return fail(400, { error: result.error });
-		return { success: `合成成功！已装备称号【${result.badge}】` };
+		return {
+			success: result.equipped
+				? `合成成功！称号【${result.badge}】已放入背包并自动装备`
+				: `合成成功！称号【${result.badge}】已放入背包（当前已装备其他称号，可在背包中切换）`
+		};
 	},
 
 	/** 交易②③④：积分买花 */

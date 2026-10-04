@@ -303,9 +303,10 @@ export const items = sqliteTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }), // 当前持有者
 		itemType: text('item_type', {
-			enum: ['flower:poppy', 'flower:cornflower', 'flower:dandelion']
-		}).notNull(), // 道具类型
-		source: text('source', { enum: ['festival-signin', 'gift', 'shop'] }).notNull(), // 来源：国庆签到 / 好友赠送 / 商店购买
+			enum: ['flower:poppy', 'flower:cornflower', 'flower:dandelion', 'badge:national']
+		}).notNull(), // 道具类型：三种绝版花 / 称号【国庆快乐】
+		source: text('source', { enum: ['festival-signin', 'gift', 'shop', 'craft'] }).notNull(), // 来源：国庆签到 / 好友赠送 / 商店购买 / 商店合成
+		equipped: integer('equipped', { mode: 'boolean' }).notNull().default(false), // 是否装备中（仅称号道具使用）
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.notNull()
 			.$defaultFn(() => new Date())

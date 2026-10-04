@@ -9,10 +9,7 @@
 
 	const nOf = $derived((t: string) => data.counts[t] ?? 0);
 	const canCraft = $derived(
-		!data.badge &&
-			nOf('flower:poppy') >= 1 &&
-			nOf('flower:cornflower') >= 1 &&
-			nOf('flower:dandelion') >= 1
+		nOf('flower:poppy') >= 1 && nOf('flower:cornflower') >= 1 && nOf('flower:dandelion') >= 1
 	);
 	const canBuy = $derived(data.points >= price);
 </script>
@@ -55,9 +52,12 @@
 		<span class="wallet-label">🏅 称号</span>
 		<span class="wallet-value">
 			{#if data.badge}
-				<span class="user-badge">【{data.badge}】</span>
+				<span class="user-badge">【{data.badge}】已装备</span>
 			{:else}
-				暂无
+				未装备
+			{/if}
+			{#if data.badgeCount > 0}
+				<span class="text-secondary" style="font-size:13px;">（背包 ×{data.badgeCount}）</span>
 			{/if}
 		</span>
 	</div>
@@ -67,7 +67,7 @@
 <section class="card trade-card">
 	<div class="trade-head">
 		<div class="trade-title">🏅 合成称号【国庆快乐】</div>
-		<div class="trade-sub">装备后：名字后方显示红色加粗称号，所有发言文字变为红色黑框</div>
+		<div class="trade-sub">合成后称号【国庆快乐】放入背包，可穿戴 / 脱下，也可赠送给其他吧友</div>
 	</div>
 	<div class="trade-recipe">
 		{#each ['flower:poppy', 'flower:cornflower', 'flower:dandelion'] as t (t)}
@@ -87,9 +87,9 @@
 			type="submit"
 			class="btn btn-primary"
 			disabled={!canCraft}
-			title={canCraft ? '' : data.badge ? '已拥有称号' : '材料不足'}
+			title={canCraft ? '' : '材料不足'}
 		>
-			{data.badge ? '已装备' : canCraft ? '合成称号' : '材料不足'}
+			{canCraft ? (data.badgeCount > 0 ? '再合成一个' : '合成称号') : '材料不足'}
 		</button>
 	</form>
 </section>

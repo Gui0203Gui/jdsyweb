@@ -28,7 +28,27 @@ export type FlowerType = keyof typeof FLOWERS;
 
 export const FLOWER_TYPES = Object.keys(FLOWERS) as FlowerType[];
 
-/** 根据道具类型取展示信息（未知类型返回空） */
+/**
+ * 称号道具（背包物品）展示信息。
+ * 商店合成获得，可穿戴/脱下，可赠送给其他用户。
+ */
+export const BADGE_INFO = {
+	key: 'badge:national',
+	name: '称号·国庆快乐',
+	shortName: '国庆快乐',
+	tag: '绝版',
+	icon: '🏅'
+} as const;
+
+export type ItemType = FlowerType | (typeof BADGE_INFO)['key'];
+
+/** 根据道具类型取展示信息（花或称号；未知类型返回空） */
+export function itemInfo(itemType: string) {
+	if (itemType === BADGE_INFO.key) return BADGE_INFO;
+	return FLOWERS[itemType as FlowerType] ?? null;
+}
+
+/** 根据道具类型取展示信息（仅花；未知类型返回空，兼容旧调用） */
 export function flowerInfo(itemType: string) {
 	return FLOWERS[itemType as FlowerType] ?? null;
 }

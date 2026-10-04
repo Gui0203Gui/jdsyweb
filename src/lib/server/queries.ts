@@ -740,13 +740,14 @@ export async function deleteGraffiti(db: Db, graffitiId: string) {
 
 export const SHOP_FLOWER_PRICE = 25; // 商店买花价格（积分）
 export const BADGE_NAME = '国庆快乐'; // 合成称号
+export const BADGE_ITEM_TYPE = 'badge:national' as FlowerType; // 称号在背包中的道具类型
 export const BADGE_FLOWERS: FlowerType[] = [
 	'flower:poppy',
 	'flower:cornflower',
 	'flower:dandelion'
 ];
 
-/** 商店状态：积分、称号、三种花数量 */
+/** 商店状态：积分、当前装备称号、背包称号数、三种花数量 */
 export async function getShopStatus(db: Db, userId: string) {
 	const user = await db
 		.select({ points: users.points, badge: users.badge })
@@ -761,10 +762,18 @@ export async function getShopStatus(db: Db, userId: string) {
 	for (const r of rows) {
 		counts[r.type] = (counts[r.type] ?? 0) + 1;
 	}
-	return { points: user?.points ?? 0, badge: user?.badge ?? null, counts };
+	return {
+		points: user?.points ?? 0,
+		badge: user?.badge ?? null,
+		badgeCount: counts[BADGE_ITEM_TYPE] ?? 0,
+		counts
+	};
 }
 
-/** 合成称号：消耗虞美人+矢车菊+蒲公英 各1朵，获得称号【国庆快乐】 */
+/**
+ * 合成称号道具：消耗虞美人+矢车菊+蒲公英 各1朵，称号【国庆快乐】入背包。
+ * 若当前未装备任何称号，则自动装备；已装备时新称号放入背包待用（可送人）。
+ */
 export async function craftBadge(db: Db, userId: string) {
 	const held: { type: FlowerType; id: string }[] = [];
 	for (const t of BADGE_FLOWERS) {
@@ -782,9 +791,77 @@ export async function craftBadge(db: Db, userId: string) {
 	for (const h of held) {
 		await db.delete(items).where(eq(items.id, h.id));
 	}
-	// 授予称号
+	// 是否已装备称号（决定新道具是否自动穿戴）
+	const user = await db
+		.select({ badge: users.badge })
+		.from(users)
+		.where(eq(users.id, userId))
+		.get();
+	const equipped = !user?.badge;
+	await db.insert(items).values({
+		ownerId: userId,
+		itemType: BADGE_ITEM_TYPE,
+		source: 'craft',
+		equipped
+	});
+	if (equipped) {
+		await db.update(users).set({ badge: BADGE_NAME }).where(eq(users.id, userId));
+	}
+	return { ok: true, badge: BADGE_NAME, equipped };
+}
+
+/** 穿戴称号道具：卸下当前装备的称号，装备指定道具 */
+export async function equipBadge(db: Db, userId: string, itemId: string) {
+	const item = await db
+		.select()
+		.from(items)
+		.where(
+			and(eq(items.id, itemId), eq(items.ownerId, userId), eq(items.itemType, BADGE_ITEM_TYPE))
+		)
+		.get();
+	if (!item) return { ok: false, error: '称号道具不存在或不属于你' };
+	await db.update(items).set({ equipped: false }).where(eq(items.ownerId, userId));
+	await db.update(items).set({ equipped: true }).where(eq(items.id, itemId));
 	await db.update(users).set({ badge: BADGE_NAME }).where(eq(users.id, userId));
 	return { ok: true, badge: BADGE_NAME };
+}
+
+/** 脱下称号：称号道具仍在背包，仅取消装备 */
+export async function unequipBadge(db: Db, userId: string) {
+	const item = await db
+		.select({ id: items.id })
+		.from(items)
+		.where(
+			and(eq(items.ownerId, userId), eq(items.itemType, BADGE_ITEM_TYPE), eq(items.equipped, true))
+		)
+		.limit(1)
+		.get();
+	if (!item) return { ok: false, error: '当前没有装备称号' };
+	await db.update(items).set({ equipped: false }).where(eq(items.id, item.id));
+	await db.update(users).set({ badge: null }).where(eq(users.id, userId));
+	return { ok: true };
+}
+
+/** 赠送称号道具：转移给目标用户；若发送者正装备着它则自动脱下 */
+export async function giftBadgeItem(
+	db: Db,
+	itemId: string,
+	fromUserId: string,
+	toUser: typeof users.$inferSelect
+) {
+	const item = await db
+		.select()
+		.from(items)
+		.where(
+			and(eq(items.id, itemId), eq(items.ownerId, fromUserId), eq(items.itemType, BADGE_ITEM_TYPE))
+		)
+		.get();
+	if (!item) return { ok: false, error: '称号道具不存在或不属于你' };
+	await db.update(items).set({ ownerId: toUser.id, equipped: false }).where(eq(items.id, itemId));
+	if (item.equipped) {
+		await db.update(users).set({ badge: null }).where(eq(users.id, fromUserId));
+	}
+	return { ok: true };
 }
 
 /** 积分买花：25 积分换一朵指定花 */
