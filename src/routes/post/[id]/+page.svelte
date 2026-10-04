@@ -62,7 +62,10 @@
 					>👤</span
 				>
 			{/if}
-			<span>{data.author.username}</span>
+			<span
+				>{data.author.username}
+				{#if data.author.badge}<span class="user-badge">【{data.author.badge}】</span>{/if}</span
+			>
 			<span>·</span>
 			<span>⭐ {data.author.points} 积分</span>
 			<span>·</span>
@@ -72,7 +75,7 @@
 		</div>
 	</header>
 
-	<div class="post-content">{data.post.content}</div>
+	<div class="post-content" class:badge-speech={data.author.badge}>{data.post.content}</div>
 
 	{#if postImages.length > 0}
 		<div class="post-images">
@@ -124,11 +127,15 @@
 						>👤</span
 					>
 				{/if}
-				<span><strong>{item.author.username}</strong> ⭐{item.author.points}</span>
+				<span
+					><strong>{item.author.username}</strong>
+					{#if item.author.badge}<span class="user-badge">【{item.author.badge}】</span>{/if} ⭐{item
+						.author.points}</span
+				>
 				<span class="comment-floor">#{i + 1}楼</span>
 				<span class="comment-floor">{formatDateTime(item.comment.createdAt)}</span>
 			</div>
-			<div class="comment-body">{item.comment.content}</div>
+			<div class="comment-body" class:badge-speech={item.author.badge}>{item.comment.content}</div>
 			{#if !data.post.isLocked}
 				<form method="post" action="?/like" use:enhance class="mt-8">
 					<input type="hidden" name="targetType" value="comment" />

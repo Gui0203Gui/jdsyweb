@@ -17,6 +17,7 @@ export const users = sqliteTable(
 			.default('user'),
 		isBanned: integer('is_banned', { mode: 'boolean' }).notNull().default(false),
 		points: integer('points').notNull().default(0),
+		badge: text('badge'), // 称号（如「国庆快乐」），空则无
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.notNull()
 			.$defaultFn(() => new Date())
@@ -194,7 +195,7 @@ export const pointLogs = sqliteTable(
 			.references(() => users.id, { onDelete: 'cascade' }),
 		change: integer('change').notNull(), // 正负值
 		reason: text('reason', {
-			enum: ['post', 'comment', 'like', 'favorite', 'signin', 'work']
+			enum: ['post', 'comment', 'like', 'favorite', 'signin', 'work', 'shop']
 		}).notNull(),
 		refId: text('ref_id').notNull().default(''), // 关联对象 id（帖子/评论/作品）
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -304,7 +305,7 @@ export const items = sqliteTable(
 		itemType: text('item_type', {
 			enum: ['flower:poppy', 'flower:cornflower', 'flower:dandelion']
 		}).notNull(), // 道具类型
-		source: text('source', { enum: ['festival-signin', 'gift'] }).notNull(), // 来源：国庆签到 / 好友赠送
+		source: text('source', { enum: ['festival-signin', 'gift', 'shop'] }).notNull(), // 来源：国庆签到 / 好友赠送 / 商店购买
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.notNull()
 			.$defaultFn(() => new Date())

@@ -10,7 +10,8 @@
 		like: '点赞',
 		favorite: '收藏',
 		signin: '签到',
-		work: '上传作品'
+		work: '上传作品',
+		shop: '商店兑换'
 	};
 
 	function fmtDate(ts: Date | number): string {
@@ -67,6 +68,9 @@
 		<div class="profile-info">
 			<div class="profile-name">
 				{data.profile.user.username}
+				{#if data.profile.user.badge}<span class="user-badge" style="margin-left:6px;"
+						>【{data.profile.user.badge}】</span
+					>{/if}
 				{#if data.profile.user.role === 'admin'}
 					<span class="tag admin" style="margin-left:8px;">管理员</span>
 				{/if}
@@ -145,7 +149,10 @@
 					<a href={`/post/${row.post.id}`} class="post-title">{row.post.title}</a>
 				</div>
 				<div class="post-meta">
-					<span>作者：{row.author.username}</span>
+					<span
+						>作者：{row.author.username}
+						{#if row.author.badge}<span class="user-badge">【{row.author.badge}】</span>{/if}</span
+					>
 					<span>💬 {row.commentCount}</span>
 				</div>
 			</li>

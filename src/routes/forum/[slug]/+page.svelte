@@ -51,7 +51,11 @@
 							>👤</span
 						>
 					{/if}
-					<span>{item.author.username} ⭐{item.author.points}</span>
+					<span
+						>{item.author.username}
+						{#if item.author.badge}<span class="user-badge">【{item.author.badge}】</span>{/if} ⭐{item
+							.author.points}</span
+					>
 					<span>·</span>
 					<span>{formatRelativeTime(item.post.createdAt)}</span>
 					<span>·</span>
@@ -61,7 +65,7 @@
 					<span>👁 {item.post.views}</span>
 				</div>
 				{#if item.post.content}
-					<p class="post-excerpt">{item.post.content}</p>
+					<p class="post-excerpt" class:badge-speech={item.author.badge}>{item.post.content}</p>
 				{/if}
 			</li>
 		{/each}

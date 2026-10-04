@@ -9,6 +9,7 @@ import {
 	items,
 	likes,
 	notifications,
+	pointLogs,
 	posts,
 	teacherLikes,
 	teachers,
@@ -733,4 +734,77 @@ export async function getGraffiti(db: Db, graffitiId: string) {
 
 export async function deleteGraffiti(db: Db, graffitiId: string) {
 	await db.delete(graffitis).where(eq(graffitis.id, graffitiId));
+}
+
+// ---------- 商店系统 ----------
+
+export const SHOP_FLOWER_PRICE = 25; // 商店买花价格（积分）
+export const BADGE_NAME = '国庆快乐'; // 合成称号
+export const BADGE_FLOWERS: FlowerType[] = [
+	'flower:poppy',
+	'flower:cornflower',
+	'flower:dandelion'
+];
+
+/** 商店状态：积分、称号、三种花数量 */
+export async function getShopStatus(db: Db, userId: string) {
+	const user = await db
+		.select({ points: users.points, badge: users.badge })
+		.from(users)
+		.where(eq(users.id, userId))
+		.get();
+	const rows = await db
+		.select({ type: items.itemType })
+		.from(items)
+		.where(eq(items.ownerId, userId));
+	const counts: Record<string, number> = {};
+	for (const r of rows) {
+		counts[r.type] = (counts[r.type] ?? 0) + 1;
+	}
+	return { points: user?.points ?? 0, badge: user?.badge ?? null, counts };
+}
+
+/** 合成称号：消耗虞美人+矢车菊+蒲公英 各1朵，获得称号【国庆快乐】 */
+export async function craftBadge(db: Db, userId: string) {
+	const held: { type: FlowerType; id: string }[] = [];
+	for (const t of BADGE_FLOWERS) {
+		const row = await db
+			.select({ id: items.id })
+			.from(items)
+			.where(and(eq(items.ownerId, userId), eq(items.itemType, t)))
+			.orderBy(items.createdAt)
+			.limit(1)
+			.get();
+		if (!row) return { ok: false, error: '材料不足' };
+		held.push({ type: t, id: row.id });
+	}
+	// 消耗 3 朵花
+	for (const h of held) {
+		await db.delete(items).where(eq(items.id, h.id));
+	}
+	// 授予称号
+	await db.update(users).set({ badge: BADGE_NAME }).where(eq(users.id, userId));
+	return { ok: true, badge: BADGE_NAME };
+}
+
+/** 积分买花：25 积分换一朵指定花 */
+export async function buyFlower(db: Db, userId: string, itemType: FlowerType) {
+	const user = await db
+		.select({ points: users.points })
+		.from(users)
+		.where(eq(users.id, userId))
+		.get();
+	const points = user?.points ?? 0;
+	if (points < SHOP_FLOWER_PRICE) {
+		return { ok: false, error: `积分不足，需要 ${SHOP_FLOWER_PRICE} 积分（当前 ${points}）` };
+	}
+	await db
+		.update(users)
+		.set({ points: sql`${users.points} - ${SHOP_FLOWER_PRICE}` })
+		.where(eq(users.id, userId));
+	await db
+		.insert(pointLogs)
+		.values({ userId, change: -SHOP_FLOWER_PRICE, reason: 'shop', refId: itemType });
+	await db.insert(items).values({ ownerId: userId, itemType, source: 'shop' });
+	return { ok: true, points: points - SHOP_FLOWER_PRICE };
 }

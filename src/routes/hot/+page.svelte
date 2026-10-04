@@ -29,14 +29,17 @@
 				<a href={`/post/${row.post.id}`} class="post-title">{row.post.title}</a>
 			</div>
 			<div class="post-meta">
-				<span>{row.author.username}</span>
+				<span
+					>{row.author.username}
+					{#if row.author.badge}<span class="user-badge">【{row.author.badge}】</span>{/if}</span
+				>
 				<span>👁 {row.post.views}</span>
 				<span>💬 {row.commentCount}</span>
 				<span>👍 {row.likeCount}</span>
 				<span>{fmtDate(row.post.createdAt)}</span>
 			</div>
 			{#if row.post.content}
-				<div class="post-excerpt">{row.post.content}</div>
+				<div class="post-excerpt" class:badge-speech={row.author.badge}>{row.post.content}</div>
 			{/if}
 		</li>
 	{:else}

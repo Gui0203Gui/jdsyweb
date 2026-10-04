@@ -32,6 +32,9 @@
 		<div class="profile-info">
 			<div class="profile-name">
 				{data.profile.user.username}
+				{#if data.profile.user.badge}<span class="user-badge" style="margin-left:6px;"
+						>【{data.profile.user.badge}】</span
+					>{/if}
 				{#if data.profile.user.role === 'admin'}
 					<span class="tag admin" style="margin-left:8px;">管理员</span>
 				{/if}

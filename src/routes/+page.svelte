@@ -16,6 +16,7 @@
 		<a href="/hot" class="btn btn-ghost btn-sm">🔥 热门</a>
 		<a href="/ranking" class="btn btn-ghost btn-sm">🏆 排行</a>
 		<a href="/teachers" class="btn btn-ghost btn-sm">👨‍🏫 老师榜</a>
+		<a href="/shop" class="btn btn-ghost btn-sm">🛒 商店</a>
 		<a href="/bag" class="btn btn-ghost btn-sm">🎒 背包</a>
 		<a href="/festival" class="btn btn-ghost btn-sm">🎁 国庆领花</a>
 		<a href="/graffiti" class="btn btn-ghost btn-sm">🎨 涂鸦墙</a>
@@ -91,7 +92,10 @@
 						<div class="work-card-desc">{item.work.description}</div>
 					{/if}
 					<div class="work-card-meta">
-						<span>👤 {item.author.username}</span>
+						<span
+							>👤 {item.author.username}{#if item.author.badge}
+								<span class="user-badge">【{item.author.badge}】</span>{/if}</span
+						>
 						<span>·</span>
 						<span>👁 {item.work.views}</span>
 					</div>
@@ -140,7 +144,11 @@
 								style="width:20px;height:20px;font-size:12px;vertical-align:-4px;">👤</span
 							>
 						{/if}
-						<span>{item.author.username} ⭐{item.author.points}</span>
+						<span
+							>{item.author.username}
+							{#if item.author.badge}<span class="user-badge">【{item.author.badge}】</span>{/if} ⭐{item
+								.author.points}</span
+						>
 						<span>·</span>
 						<span>{formatRelativeTime(item.post.createdAt)}</span>
 						<span>·</span>

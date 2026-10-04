@@ -388,6 +388,26 @@ a:hover {
 	color: var(--text-secondary);
 }
 
+/* ---------- 称号系统 ---------- */
+/* 名字后方的称号：红色加粗 */
+.user-badge {
+	color: #e60000;
+	font-weight: 700;
+	font-style: normal;
+	white-space: nowrap;
+}
+
+/* 装备称号者的发言文字：红色 + 黑色描边 */
+.badge-speech {
+	color: #ff2020;
+	text-shadow:
+		0 0 2px #000,
+		1px 1px 0 #000,
+		-1px 1px 0 #000,
+		1px -1px 0 #000,
+		-1px -1px 0 #000;
+}
+
 /* ---------- 表单 ---------- */
 .form-group {
 	margin-bottom: 16px;
