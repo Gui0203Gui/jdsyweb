@@ -22,6 +22,7 @@
 <div class="admin-tabs">
 	<a href="/admin" class="btn btn-ghost btn-sm">帖子管理</a>
 	<a href="/admin/users" class="btn btn-primary btn-sm">用户管理</a>
+	<a href="/admin/teachers" class="btn btn-ghost btn-sm">老师审批</a>
 </div>
 
 {#if form?.error}

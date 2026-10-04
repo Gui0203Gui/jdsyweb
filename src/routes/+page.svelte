@@ -60,15 +60,10 @@
 			<div class="forum-card-name">爱发电 · 龙腾猫跃</div>
 			<div class="forum-card-desc">PCL 启动器（PCL2）官方下载主页</div>
 		</a>
-		<a
-			href="http://ws.imc.rc/eaglecraft/"
-			target="_blank"
-			rel="noopener noreferrer"
-			class="forum-card"
-		>
-			<div class="forum-card-icon">🧱</div>
-			<div class="forum-card-name">Eaglecraft 网页版</div>
-			<div class="forum-card-desc">浏览器里直接玩我的世界（网页版 MC）</div>
+		<a href="https://automods.cn/hx/" target="_blank" rel="noopener noreferrer" class="forum-card">
+			<div class="forum-card-icon">🛠️</div>
+			<div class="forum-card-name">AutoMods 我的世界模组</div>
+			<div class="forum-card-desc">我的世界 Mod 制作网站</div>
 		</a>
 		<a href="https://mcjs.link/" target="_blank" rel="noopener noreferrer" class="forum-card">
 			<div class="forum-card-icon">🎮</div>
