@@ -312,9 +312,10 @@ export const items = sqliteTable(
 				'flower:cornflower',
 				'flower:dandelion',
 				'badge:national',
-				'badge:chengmen'
+				'badge:chengmen',
+				'item:namecard'
 			]
-		}).notNull(), // 道具类型：三种绝版花 / 称号【国庆快乐】/ 称号【程门立雪】
+		}).notNull(), // 道具类型：三种绝版花 / 称号【国庆快乐】/ 称号【程门立雪】/ 改名卡
 		source: text('source', {
 			enum: ['festival-signin', 'gift', 'shop', 'craft', 'admin']
 		}).notNull(), // 来源：国庆签到 / 好友赠送 / 商店购买 / 商店合成 / 管理员发放

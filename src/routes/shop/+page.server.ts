@@ -1,6 +1,6 @@
 import { error, redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { buyFlower, craftBadge, getShopStatus } from '#lib/server/queries';
+import { buyFlower, buyNameCard, craftBadge, getShopStatus } from '#lib/server/queries';
 import { FLOWER_TYPES, badgeShort, type FlowerType } from '#lib/flowers';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -40,5 +40,15 @@ export const actions: Actions = {
 		const result = await buyFlower(locals.db, locals.user.id, itemType as FlowerType);
 		if (!result.ok) return fail(400, { error: result.error });
 		return { success: `购买成功！已放入背包（剩余 ${result.points} 积分）` };
+	},
+
+	/** 交易⑤：积分买改名卡（20 积分，背包内使用可改名一次） */
+	buyName: async ({ locals }) => {
+		if (!locals.user) throw error(401, '请先登录');
+		const result = await buyNameCard(locals.db, locals.user.id);
+		if (!result.ok) return fail(400, { error: result.error });
+		return {
+			success: `购买成功！改名卡已放入背包（剩余 ${result.points} 积分），去背包使用即可改名`
+		};
 	}
 };

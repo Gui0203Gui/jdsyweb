@@ -13,6 +13,7 @@
 		nOf('flower:poppy') >= 1 && nOf('flower:cornflower') >= 1 && nOf('flower:dandelion') >= 1
 	);
 	const canBuy = $derived(data.points >= price);
+	const canBuyName = $derived(data.points >= 20);
 </script>
 
 <svelte:head>
@@ -124,6 +125,31 @@
 			</section>
 		{/each}
 	</div>
+</section>
+
+<!-- 交易⑤：积分买改名卡 -->
+<section class="card trade-card">
+	<div class="trade-head">
+		<div class="trade-title">🪪 改名卡</div>
+		<div class="trade-sub">
+			20 积分 / 张 · 使用后可将用户名改为一个新昵称（2-20 位中文、字母、数字或下划线）
+		</div>
+	</div>
+	<div class="trade-recipe">
+		<span class="recipe-item" style="font-size:24px;line-height:1;"
+			>🪪 改名卡 ×{nOf('item:namecard')}</span
+		>
+	</div>
+	<form method="post" action="?/buyName">
+		<button
+			type="submit"
+			class="btn btn-primary"
+			disabled={!canBuyName}
+			title={canBuyName ? '' : '积分不足'}
+		>
+			{canBuyName ? '花费 20 积分购买' : '积分不足'}
+		</button>
+	</form>
 </section>
 
 <style>

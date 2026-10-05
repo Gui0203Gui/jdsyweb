@@ -88,12 +88,33 @@ export function badgeCls(badgeKey: string | null | undefined): string {
 	return badgeInfo(badgeKey)?.cls ?? 'nat';
 }
 
-export type ItemType = FlowerType | BadgeType;
+export type ItemType = FlowerType | BadgeType | MiscItemType;
 
-/** 根据道具类型取展示信息（花或称号；未知类型返回 null） */
+/**
+ * 其他道具（非花、非称号的背包物品）。
+ */
+export const MISC_ITEMS = {
+	'item:namecard': {
+		key: 'item:namecard',
+		name: '改名卡',
+		tag: '商店 · 20积分',
+		icon: '🪪'
+	}
+} as const;
+
+export type MiscItemType = keyof typeof MISC_ITEMS;
+
+export const MISC_ITEM_TYPES = Object.keys(MISC_ITEMS) as MiscItemType[];
+
+export const NAME_CARD_TYPE = 'item:namecard';
+
+/** 根据道具类型取展示信息（花 / 称号 / 其他道具；未知类型返回 null） */
 export function itemInfo(itemType: string) {
 	return (
-		(BADGE_INFOS as Record<string, BadgeInfo>)[itemType] ?? FLOWERS[itemType as FlowerType] ?? null
+		(BADGE_INFOS as Record<string, BadgeInfo>)[itemType] ??
+		FLOWERS[itemType as FlowerType] ??
+		MISC_ITEMS[itemType as MiscItemType] ??
+		null
 	);
 }
 

@@ -4,6 +4,7 @@
 		BADGE_INFOS,
 		BADGE_TYPES,
 		FLOWERS,
+		MISC_ITEMS,
 		itemInfo,
 		type BadgeType,
 		type FlowerType
@@ -13,6 +14,7 @@
 
 	const FLOWER_LIST = Object.values(FLOWERS);
 	const BADGE_LIST = Object.values(BADGE_INFOS);
+	const MISC_LIST = Object.values(MISC_ITEMS);
 
 	// MC 物品栏：固定 9 列网格，只放拥有的道具，其余为暗色空槽
 	const SLOTS_PER_ROW = 9;
@@ -45,6 +47,7 @@
 	}
 
 	const isBadgeSel = $derived(selected ? BADGE_TYPES.includes(selected as BadgeType) : false);
+	const isNameCardSel = $derived(selected === 'item:namecard');
 	const selInfo = $derived<SlotInfo | null>(
 		selected ? (itemInfo(selected) as SlotInfo | null) : null
 	);
@@ -173,6 +176,28 @@
 					<button type="submit" class="btn btn-primary btn-sm">送称号给 TA</button>
 				</form>
 			{/if}
+		{:else if isNameCardSel}
+			<div class="send-title">
+				<span class="slot-icon slot-emoji" style="font-size:24px;">🪪</span>
+				使用改名卡（当前用户名：{data.username}）
+			</div>
+			<p class="form-hint" style="margin-bottom:12px;">
+				消耗 1 张改名卡，将用户名改为新昵称（2-20
+				位中文、字母、数字或下划线）。改名后需用新用户名登录，旧主页链接将失效。
+			</p>
+			<form method="post" action="?/rename" class="flex" style="gap:8px;">
+				<input
+					type="text"
+					name="username"
+					class="form-input"
+					placeholder="新用户名"
+					required
+					minlength="2"
+					maxlength="20"
+					style="max-width:240px;"
+				/>
+				<button type="submit" class="btn btn-primary btn-sm">确认改名（消耗 1 张）</button>
+			</form>
 		{:else}
 			<div class="send-title">
 				{#if selInfo?.image}
@@ -209,7 +234,7 @@
 			仅管理员可见：可无限领取物品放入自己背包（每点一次领取 1 个），之后可赠送给其他吧友。
 		</p>
 		<div class="take-grid">
-			{#each [...FLOWER_LIST, ...BADGE_LIST] as item (item.key)}
+			{#each [...FLOWER_LIST, ...BADGE_LIST, ...MISC_LIST] as item (item.key)}
 				<form method="post" action="?/takeItem" class="take-item">
 					<input type="hidden" name="itemType" value={item.key} />
 					{#if 'image' in item && item.image}
@@ -240,8 +265,8 @@
 				<li class="post-item">
 					{#if it.info?.image}
 						<img src={it.info.image} alt={it.info.name} class="flower-img-sm" />
-					{:else if it.itemType.startsWith('badge:')}
-						<span class="avatar" style="font-size:24px;">{it.info?.icon ?? '🏅'}</span>
+					{:else if it.info?.icon}
+						<span class="avatar" style="font-size:24px;">{it.info.icon}</span>
 					{:else}
 						<span class="avatar">🪻</span>
 					{/if}

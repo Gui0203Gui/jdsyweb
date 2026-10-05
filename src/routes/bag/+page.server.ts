@@ -2,6 +2,7 @@ import { error, redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	adminTakeItem,
+	changeUsername,
 	createNotification,
 	equipBadge,
 	getItem,
@@ -19,6 +20,8 @@ import {
 	type BadgeType,
 	type FlowerType
 } from '#lib/flowers';
+
+const USERNAME_RE = /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$/;
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) throw redirect(302, '/login');
@@ -140,10 +143,26 @@ export const actions: Actions = {
 			return fail(403, { error: '仅管理员可使用取物栏' });
 		const form = await request.formData();
 		const itemType = String(form.get('itemType') ?? '');
-		const allowed = [...FLOWER_TYPES, ...BADGE_TYPES] as string[];
+		const allowed = [...FLOWER_TYPES, ...BADGE_TYPES, 'item:namecard'] as string[];
 		if (!allowed.includes(itemType)) return fail(400, { error: '物品类型无效' });
 		await adminTakeItem(locals.db, locals.user.id, itemType);
 		const info = itemInfo(itemType);
 		return { success: `已领取 1 个${info ? info.name : itemType}` };
+	},
+
+	/** 使用改名卡：消耗 1 张卡，将用户名改为新昵称 */
+	rename: async ({ request, locals }) => {
+		if (!locals.user) throw error(401, '请先登录');
+		const form = await request.formData();
+		const newName = String(form.get('username') ?? '').trim();
+		if (!USERNAME_RE.test(newName)) {
+			return fail(400, { error: '用户名需为 2-20 位的中文、字母、数字或下划线' });
+		}
+		if (newName === locals.user.username) {
+			return fail(400, { error: '新用户名和当前用户名一样' });
+		}
+		const result = await changeUsername(locals.db, locals.user.id, newName);
+		if (!result.ok) return fail(400, { error: result.error });
+		return { success: `改名成功！你的新用户名是「${newName}」，记得用新用户名登录` };
 	}
 };

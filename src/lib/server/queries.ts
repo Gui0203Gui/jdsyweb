@@ -951,3 +951,54 @@ export async function adminTakeItem(db: Db, userId: string, itemType: string) {
 	});
 	return { ok: true };
 }
+
+// ---------- 改名卡 ----------
+
+export const NAME_CARD_PRICE = 20; // 改名卡价格（积分）
+
+/** 商店购买改名卡：20 积分换一张，入背包 */
+export async function buyNameCard(db: Db, userId: string) {
+	const user = await db
+		.select({ points: users.points })
+		.from(users)
+		.where(eq(users.id, userId))
+		.get();
+	const points = user?.points ?? 0;
+	if (points < NAME_CARD_PRICE) {
+		return { ok: false, error: `积分不足，需要 ${NAME_CARD_PRICE} 积分（当前 ${points}）` };
+	}
+	await db
+		.update(users)
+		.set({ points: sql`${users.points} - ${NAME_CARD_PRICE}` })
+		.where(eq(users.id, userId));
+	await db
+		.insert(pointLogs)
+		.values({ userId, change: -NAME_CARD_PRICE, reason: 'shop', refId: 'item:namecard' });
+	await db.insert(items).values({ ownerId: userId, itemType: 'item:namecard', source: 'shop' });
+	return { ok: true, points: points - NAME_CARD_PRICE };
+}
+
+/** 使用改名卡改名：校验唯一性 → 消耗 1 张卡 → 更新用户名 */
+export async function changeUsername(db: Db, userId: string, newUsername: string) {
+	// 用户名唯一性（排除自己）
+	const existing = await db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.username, newUsername), sql`${users.id} != ${userId}`))
+		.get();
+	if (existing) return { ok: false, error: '该用户名已被使用' };
+
+	// 消耗 1 张改名卡（取最早的一张）
+	const card = await db
+		.select({ id: items.id })
+		.from(items)
+		.where(and(eq(items.ownerId, userId), eq(items.itemType, 'item:namecard')))
+		.orderBy(items.createdAt)
+		.limit(1)
+		.get();
+	if (!card) return { ok: false, error: '背包里没有改名卡' };
+
+	await db.delete(items).where(eq(items.id, card.id));
+	await db.update(users).set({ username: newUsername }).where(eq(users.id, userId));
+	return { ok: true };
+}
