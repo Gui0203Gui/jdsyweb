@@ -130,14 +130,17 @@
 <!-- 交易⑤：积分买改名卡 -->
 <section class="card trade-card">
 	<div class="trade-head">
-		<div class="trade-title">🪪 改名卡</div>
+		<div class="trade-title">
+			<img src="/misc/namecard.svg" alt="改名卡" class="nc-title-img" /> 改名卡
+		</div>
 		<div class="trade-sub">
 			20 积分 / 张 · 使用后可将用户名改为一个新昵称（2-20 位中文、字母、数字或下划线）
 		</div>
 	</div>
 	<div class="trade-recipe">
-		<span class="recipe-item" style="font-size:24px;line-height:1;"
-			>🪪 改名卡 ×{nOf('item:namecard')}</span
+		<span class="recipe-item" style="font-size:24px;line-height:1;">
+			<img src="/misc/namecard.svg" alt="改名卡" class="nc-recipe-img" />
+			改名卡 ×{nOf('item:namecard')}</span
 		>
 	</div>
 	<form method="post" action="?/buyName">
@@ -229,6 +232,17 @@
 		border: 1px dashed var(--accent);
 		border-radius: 10px;
 		padding: 8px 14px;
+	}
+	.nc-title-img {
+		width: 24px;
+		height: 24px;
+		image-rendering: pixelated;
+		vertical-align: -4px;
+	}
+	.nc-recipe-img {
+		width: 26px;
+		height: 26px;
+		image-rendering: pixelated;
 	}
 	.buy-grid {
 		display: grid;

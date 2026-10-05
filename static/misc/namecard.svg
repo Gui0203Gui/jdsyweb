@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- 像素风改名卡图标：米黄卡片 + 人像 + 名字线条 -->
+  <rect x="6" y="14" width="52" height="38" rx="3" fill="#e2b96f"/>
+  <rect x="6" y="14" width="52" height="6" fill="#c1913f"/>
+  <rect x="10" y="20" width="44" height="28" rx="2" fill="#f6e6bd"/>
+  <rect x="16" y="30" width="12" height="6" fill="#8a6428"/>
+  <rect x="19" y="25" width="6" height="6" fill="#8a6428"/>
+  <rect x="33" y="27" width="13" height="3" fill="#8a6428"/>
+  <rect x="33" y="33" width="10" height="3" fill="#8a6428"/>
+  <rect x="33" y="39" width="12" height="3" fill="#8a6428"/>
+</svg>

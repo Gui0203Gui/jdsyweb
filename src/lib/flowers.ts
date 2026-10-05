@@ -98,6 +98,7 @@ export const MISC_ITEMS = {
 		key: 'item:namecard',
 		name: '改名卡',
 		tag: '商店 · 20积分',
+		image: '/misc/namecard.svg',
 		icon: '🪪'
 	}
 } as const;

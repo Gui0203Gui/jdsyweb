@@ -178,7 +178,7 @@
 			{/if}
 		{:else if isNameCardSel}
 			<div class="send-title">
-				<span class="slot-icon slot-emoji" style="font-size:24px;">🪪</span>
+				<img src="/misc/namecard.svg" alt="改名卡" class="send-icon" />
 				使用改名卡（当前用户名：{data.username}）
 			</div>
 			<p class="form-hint" style="margin-bottom:12px;">
