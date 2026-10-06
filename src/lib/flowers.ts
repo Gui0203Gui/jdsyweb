@@ -67,7 +67,7 @@ export const BADGE_INFOS = {
 		name: '称号·？！富富！？',
 		shortName: '？！富富！？',
 		tag: '商店 · 500积分',
-		icon: '🪙',
+		icon: '💰',
 		cls: 'rich'
 	},
 	'badge:strong': {

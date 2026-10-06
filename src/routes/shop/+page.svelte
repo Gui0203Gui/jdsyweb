@@ -158,7 +158,7 @@
 <!-- 交易⑥：500 积分买橙色称号 -->
 <section class="card trade-card">
 	<div class="trade-head">
-		<div class="trade-title">🪙 购买橙色称号【？！富富！？】</div>
+		<div class="trade-title">💰 购买橙色称号【？！富富！？】</div>
 		<div class="trade-sub">
 			500 积分 / 枚 · 购买后放入背包，可穿戴 / 脱下，也可赠送给其他吧友（橙色加粗）
 		</div>

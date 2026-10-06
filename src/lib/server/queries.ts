@@ -930,6 +930,9 @@ export async function giftBadgeItem(
 		)
 		.get();
 	if (!item) return { ok: false, error: '称号道具不存在或不属于你' };
+	if (item.itemType === BADGE_STRONG_KEY) {
+		return { ok: false, error: '【？！强强！？】是全成就奖励称号，不可赠送' };
+	}
 	await db.update(items).set({ ownerId: toUser.id, equipped: false }).where(eq(items.id, itemId));
 	if (item.equipped) {
 		await db.update(users).set({ badge: null }).where(eq(users.id, fromUserId));

@@ -162,7 +162,9 @@
 					</form>
 				{/if}
 			</div>
-			{#if badgeSendItem}
+			{#if selBadgeKey === 'badge:strong'}
+				<p class="form-hint">💎 全成就奖励称号，不可赠送（只能自己穿戴 / 脱下）</p>
+			{:else if badgeSendItem}
 				<form method="post" action="?/sendBadge" class="flex" style="gap:8px;">
 					<input type="hidden" name="itemId" value={badgeSendItem.id} />
 					<input
