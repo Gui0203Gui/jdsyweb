@@ -2,7 +2,18 @@ import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createSession, hashPassword, SESSION_COOKIE } from '#lib/server/auth';
 import { users } from '#lib/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
+
+const MAX_ACCOUNTS_PER_IP = 3; // 同一 IP 最多注册的账号数
+
+/** 从请求头解析客户端 IP（Cloudflare 优先，其次 X-Forwarded-For） */
+function clientIp(request: Request): string {
+	const cf = request.headers.get('cf-connecting-ip');
+	if (cf) return cf.slice(0, 45);
+	const xff = request.headers.get('x-forwarded-for');
+	if (xff) return xff.split(',')[0].trim().slice(0, 45);
+	return '';
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (locals.user) redirect(302, '/');
@@ -38,10 +49,21 @@ export const actions: Actions = {
 			return fail(400, { error: '该用户名已被注册' });
 		}
 
+		// IP 限制：同一 IP 最多注册 3 个账号
+		const ip = clientIp(request);
+		if (ip) {
+			const row = await locals.db.select({ n: count() }).from(users).where(eq(users.ip, ip));
+			if ((row[0]?.n ?? 0) >= MAX_ACCOUNTS_PER_IP) {
+				return fail(400, {
+					error: `同一 IP 最多注册 ${MAX_ACCOUNTS_PER_IP} 个账号，该网络环境已无法继续注册`
+				});
+			}
+		}
+
 		const passwordHash = await hashPassword(password);
 		const inserted = await locals.db
 			.insert(users)
-			.values({ username, passwordHash })
+			.values({ username, passwordHash, ip })
 			.returning({ id: users.id });
 
 		const userId = inserted[0]?.id;

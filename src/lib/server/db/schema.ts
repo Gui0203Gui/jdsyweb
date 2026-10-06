@@ -22,6 +22,7 @@ export const users = sqliteTable(
 		role: text('role', { enum: ['user', 'admin'] })
 			.notNull()
 			.default('user'),
+		ip: text('ip').notNull().default(''), // 注册时的 IP 地址（同一 IP 最多注册 3 个账号）
 		isBanned: integer('is_banned', { mode: 'boolean' }).notNull().default(false),
 		points: integer('points').notNull().default(0),
 		badge: text('badge'), // 称号（如「国庆快乐」），空则无
