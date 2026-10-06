@@ -4,11 +4,12 @@
 	let { data }: { data: import('./$types').PageData } = $props();
 
 	const SIZE = 100;
-	const CELL = 6;
+	const VIEW = 5; // 视口 5x5 格
+	const CELL = 80; // 每格放大到 80px
 
 	const BUILDS = {
 		miner: { name: '⛏️ 矿机', icon: '⛏️', color: '#8d7b5f', desc: '产出铁矿石' },
-		lumber: { name: '🪚 伐木场', icon: '🪚', color: '#7a5c33', desc: '产出木材' },
+		lumber: { name: '🌳 伐木场', icon: '🌳', color: '#7a5c33', desc: '产出木材' },
 		farm: { name: '🌾 农田', icon: '🌾', color: '#c9a227', desc: '产出小麦' },
 		flower: { name: '🌼 花田', icon: '🌼', color: '#e05f9e', desc: '产出花朵点' },
 		lantern: { name: '🏮 路灯', icon: '🏮', color: '#d97706', desc: '装饰' },
@@ -28,8 +29,15 @@
 	let msg = $state('');
 	let tip = $state('');
 	let canvas = $state<HTMLCanvasElement | null>(null);
+	let camX = $state(Math.floor(SIZE / 2 - VIEW / 2));
+	let camY = $state(Math.floor(SIZE / 2 - VIEW / 2));
+	let dragStart: { x: number; y: number; cx: number; cy: number; moved: boolean } | null = null;
 	const worldId = data.world.id;
 	const myId = data.myId;
+
+	function clampCam(v: number) {
+		return Math.max(0, Math.min(SIZE - VIEW, v));
+	}
 
 	let tipTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -46,9 +54,10 @@
 		if (!ctx) return;
 		ctx.fillStyle = '#7fae5a';
 		ctx.fillRect(0, 0, cv.width, cv.height);
-		ctx.strokeStyle = 'rgba(0,0,0,.08)';
-		ctx.lineWidth = 1;
-		for (let i = 0; i <= SIZE; i++) {
+		// 视口网格（VIEW+1 条线）
+		ctx.strokeStyle = 'rgba(0,0,0,.14)';
+		ctx.lineWidth = 1.5;
+		for (let i = 0; i <= VIEW; i++) {
 			ctx.beginPath();
 			ctx.moveTo(i * CELL + 0.5, 0);
 			ctx.lineTo(i * CELL + 0.5, cv.height);
@@ -58,27 +67,79 @@
 			ctx.lineTo(cv.width, i * CELL + 0.5);
 			ctx.stroke();
 		}
+		const x0 = camX,
+			y0 = camY,
+			x1 = camX + VIEW,
+			y1 = camY + VIEW;
 		for (const t of tiles) {
+			if (t.x < x0 || t.x >= x1 || t.y < y0 || t.y >= y1) continue;
 			const b = BUILDS[t.type as BuildKey];
 			if (!b) continue;
+			const px = (t.x - camX) * CELL;
+			const py = (t.y - camY) * CELL;
 			ctx.fillStyle = b.color;
-			ctx.fillRect(t.x * CELL + 1, t.y * CELL + 1, CELL - 2, CELL - 2);
-			ctx.fillStyle = 'rgba(255,255,255,.85)';
-			ctx.font = `${Math.floor(CELL * 0.72)}px sans-serif`;
+			ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
+			ctx.fillStyle = 'rgba(255,255,255,.92)';
+			ctx.font = `bold ${Math.floor(CELL * 0.6)}px sans-serif`;
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			ctx.fillText(b.icon, t.x * CELL + CELL / 2, t.y * CELL + CELL / 2 + 1);
+			ctx.fillText(b.icon, px + CELL / 2, py + CELL / 2 + 2);
+			// 别人建筑加边框（竞争辨识）
+			if (t.ownerId !== myId) {
+				ctx.strokeStyle = 'rgba(220,38,38,.9)';
+				ctx.lineWidth = 3;
+				ctx.strokeRect(px + 1.5, py + 1.5, CELL - 3, CELL - 3);
+			}
 		}
 	}
 
-	function onClick(e: MouseEvent) {
+	function onPointerDown(e: PointerEvent) {
+		dragStart = { x: e.clientX, y: e.clientY, cx: camX, cy: camY, moved: false };
 		const cv = canvas;
-		if (!cv) return;
-		const rect = cv.getBoundingClientRect();
-		const x = Math.floor(((e.clientX - rect.left) * cv.width) / rect.width / CELL);
-		const y = Math.floor(((e.clientY - rect.top) * cv.height) / rect.height / CELL);
-		if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return;
-		act(tool === 'build' ? 'place' : 'remove', x, y, tool === 'build' ? selected : undefined);
+		cv?.setPointerCapture?.(e.pointerId);
+	}
+
+	function onPointerMove(e: PointerEvent) {
+		if (!dragStart) return;
+		const dx = e.clientX - dragStart.x;
+		const dy = e.clientY - dragStart.y;
+		if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragStart.moved = true;
+		const ncx = clampCam(dragStart.cx - Math.round(dx / CELL));
+		const ncy = clampCam(dragStart.cy - Math.round(dy / CELL));
+		if (ncx !== camX || ncy !== camY) {
+			camX = ncx;
+			camY = ncy;
+			draw();
+		}
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (dragStart && !dragStart.moved) {
+			const cv = canvas;
+			if (cv) {
+				const rect = cv.getBoundingClientRect();
+				const gx = Math.floor(((e.clientX - rect.left) * cv.width) / rect.width / CELL);
+				const gy = Math.floor(((e.clientY - rect.top) * cv.height) / rect.height / CELL);
+				if (gx >= 0 && gy >= 0 && gx < VIEW && gy < VIEW) {
+					const x = camX + gx;
+					const y = camY + gy;
+					act(tool === 'build' ? 'place' : 'remove', x, y, tool === 'build' ? selected : undefined);
+				}
+			}
+		}
+		dragStart = null;
+	}
+
+	function moveCam(dx: number, dy: number) {
+		camX = clampCam(camX + dx);
+		camY = clampCam(camY + dy);
+		draw();
+	}
+
+	function centerCam() {
+		camX = Math.floor(SIZE / 2 - VIEW / 2);
+		camY = Math.floor(SIZE / 2 - VIEW / 2);
+		draw();
 	}
 
 	async function act(action: string, x: number, y: number, type?: BuildKey) {
@@ -213,12 +274,27 @@
 		<div class="board-wrap">
 			<canvas
 				bind:this={canvas}
-				width={SIZE * CELL}
-				height={SIZE * CELL}
-				onclick={onClick}
-				title="左键：放置/拆除"
+				width={VIEW * CELL}
+				height={VIEW * CELL}
+				onpointerdown={onPointerDown}
+				onpointermove={onPointerMove}
+				onpointerup={onPointerUp}
+				onpointerleave={onPointerUp}
+				title="拖动：平移地图 · 点击：放置/拆除"
 			></canvas>
 			{#if tip}<div class="tip">{tip}</div>{/if}
+			<div class="cam-bar">
+				<span class="cam-pos"
+					>视口 ({camX},{camY})–({camX + VIEW - 1},{camY + VIEW - 1}) / 100×100</span
+				>
+				<div class="cam-dpad">
+					<button onclick={() => moveCam(0, -1)} aria-label="上移">▲</button>
+					<button onclick={() => moveCam(-1, 0)} aria-label="左移">◀</button>
+					<button onclick={() => moveCam(1, 0)} aria-label="右移">▶</button>
+					<button onclick={() => moveCam(0, 1)} aria-label="下移">▼</button>
+					<button class="cam-center" onclick={centerCam}>中心</button>
+				</div>
+			</div>
 		</div>
 
 		<aside class="panel">
@@ -371,9 +447,49 @@
 	canvas {
 		background: #7fae5a;
 		border-radius: 8px;
-		cursor: crosshair;
+		cursor: grab;
 		image-rendering: pixelated;
 		max-width: 100%;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+	canvas:active {
+		cursor: grabbing;
+	}
+	.cam-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin-top: 6px;
+		font-size: 12px;
+		color: var(--text-2, #666);
+		flex-wrap: wrap;
+	}
+	.cam-pos {
+		font-variant-numeric: tabular-nums;
+	}
+	.cam-dpad {
+		display: flex;
+		gap: 4px;
+	}
+	.cam-dpad button {
+		width: 30px;
+		height: 30px;
+		border: 1px solid var(--bd, #d0d0d0);
+		background: var(--bg-1, #fff);
+		border-radius: 6px;
+		cursor: pointer;
+		font-size: 12px;
+		line-height: 1;
+	}
+	.cam-dpad button:hover {
+		border-color: #2f7de1;
+	}
+	.cam-dpad .cam-center {
+		width: auto;
+		padding: 0 8px;
 	}
 	.tip {
 		position: absolute;
