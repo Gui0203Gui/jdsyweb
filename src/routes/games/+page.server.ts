@@ -25,7 +25,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 	]);
 	return {
 		world: { id: world.id, name: world.name },
-		tiles: tiles.map((t) => ({ x: t.x, y: t.y, type: t.type, ownerId: t.ownerId, power: t.power })),
+		tiles: tiles.map((t) => ({
+			x: t.x,
+			y: t.y,
+			type: t.type,
+			ownerId: t.ownerId,
+			power: t.power,
+			lastCollectAt: t.lastCollectAt
+		})),
 		chat: chat.map((c) => ({
 			username: c.username,
 			content: c.chat.content,

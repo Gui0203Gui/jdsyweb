@@ -8,13 +8,21 @@
 	const CELL = 80; // 每格放大到 80px
 
 	const BUILDS = {
-		miner: { name: '⛏️ 矿机', icon: '⛏️', color: '#8d7b5f', desc: '产出铁矿石', cost: 8 },
-		lumber: { name: '🌳 伐木场', icon: '🌳', color: '#7a5c33', desc: '产出木材', cost: 8 },
-		farm: { name: '🌾 农田', icon: '🌾', color: '#c9a227', desc: '产出小麦', cost: 8 },
-		flower: { name: '🌼 花田', icon: '🌼', color: '#e05f9e', desc: '产出花朵点', cost: 12 },
-		lantern: { name: '🏮 路灯', icon: '🏮', color: '#d97706', desc: '装饰', cost: 4 },
-		campfire: { name: '🔥 篝火', icon: '🔥', color: '#ea580c', desc: '装饰', cost: 4 }
+		miner: { name: '⛏️ 矿机', icon: '⛏️', color: '#8d7b5f', desc: '产出铁矿石', cost: 8, rate: 2 },
+		lumber: { name: '🌳 伐木场', icon: '🌳', color: '#7a5c33', desc: '产出木材', cost: 8, rate: 2 },
+		farm: { name: '🌾 农田', icon: '🌾', color: '#c9a227', desc: '产出小麦', cost: 8, rate: 2 },
+		flower: {
+			name: '🌼 花田',
+			icon: '🌼',
+			color: '#e05f9e',
+			desc: '产出花朵点',
+			cost: 12,
+			rate: 1
+		},
+		lantern: { name: '🏮 路灯', icon: '🏮', color: '#d97706', desc: '装饰', cost: 4, rate: 0 },
+		campfire: { name: '🔥 篝火', icon: '🔥', color: '#ea580c', desc: '装饰', cost: 4, rate: 0 }
 	} as const;
+	const PRODUCE_MS = 30 * 60 * 1000; // 设施每 30 分钟产生一次收入
 	type BuildKey = keyof typeof BUILDS;
 
 	const ARMIES = {
@@ -42,9 +50,10 @@
 	} as const;
 	type ArmyKey = keyof typeof ARMIES;
 
-	let tiles = $state<{ x: number; y: number; type: string; ownerId: string; power: number }[]>(
-		data.tiles
-	);
+	let tiles = $state<
+		{ x: number; y: number; type: string; ownerId: string; power: number; lastCollectAt: number }[]
+	>(data.tiles);
+	let hoverTile = $state<{ t: (typeof tiles)[number]; px: number; py: number } | null>(null);
 	let chat = $state<{ username: string; content: string; createdAt: Date }[]>(
 		data.chat.map((c) => ({ ...c, createdAt: new Date(c.createdAt) }))
 	);
@@ -133,6 +142,46 @@
 				ctx.strokeRect(px + 1.5, py + 1.5, CELL - 3, CELL - 3);
 			}
 		}
+		// 悬停提示
+		const hv = hoverTile;
+		if (hv) {
+			const t = hv.t;
+			const b = BUILDS[t.type as BuildKey];
+			const a = ARMIES[t.type as ArmyKey];
+			const lines: string[] = [];
+			lines.push(
+				`${b?.name ?? a?.name ?? t.type}${t.ownerId === myId ? '（我的）' : '（他人的）'}`
+			);
+			if (b && b.rate > 0) {
+				lines.push(`每 30 分钟产出 ${b.rate} 个${b.desc.replace('产出', '')}`);
+				const remaining = (t.lastCollectAt ?? 0) + PRODUCE_MS - Date.now();
+				if (remaining > 0) {
+					lines.push(
+						`下次产出：${Math.floor(remaining / 60000)}分${Math.floor((remaining % 60000) / 1000)}秒`
+					);
+				} else {
+					lines.push('✅ 可收获！');
+				}
+			} else if (b) {
+				lines.push('装饰物，无产出');
+			} else if (a) {
+				lines.push(a.desc);
+				lines.push(`当前兵力：${t.power}`);
+			}
+			ctx.font = '13px sans-serif';
+			const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
+			const h = lines.length * 18 + 12;
+			let bx = hv.px + CELL;
+			if (bx + w > cv.width - 4) bx = hv.px - w;
+			let by = hv.py;
+			if (by + h > cv.height - 4) by = hv.py - h;
+			ctx.fillStyle = 'rgba(20,20,20,.88)';
+			ctx.fillRect(Math.max(2, bx), Math.max(2, by), w, h);
+			ctx.fillStyle = '#fff';
+			ctx.textAlign = 'left';
+			ctx.textBaseline = 'middle';
+			lines.forEach((ln, i) => ctx.fillText(ln, bx + 8, by + 12 + i * 18));
+		}
 	}
 
 	function onPointerDown(e: PointerEvent) {
@@ -141,8 +190,28 @@
 		cv?.setPointerCapture?.(e.pointerId);
 	}
 
+	function updateHover(e: PointerEvent) {
+		const cv = canvas;
+		if (!cv) return;
+		const rect = cv.getBoundingClientRect();
+		const gx = Math.floor(((e.clientX - rect.left) * cv.width) / rect.width / CELL);
+		const gy = Math.floor(((e.clientY - rect.top) * cv.height) / rect.height / CELL);
+		if (gx < 0 || gy < 0 || gx >= VIEW || gy >= VIEW) {
+			hoverTile = null;
+			return;
+		}
+		const x = camX + gx;
+		const y = camY + gy;
+		const t = tiles.find((tt) => tt.x === x && tt.y === y);
+		hoverTile = t ? { t, px: gx * CELL, py: gy * CELL } : null;
+		draw();
+	}
+
 	function onPointerMove(e: PointerEvent) {
-		if (!dragStart) return;
+		if (!dragStart) {
+			updateHover(e);
+			return;
+		}
 		const dx = e.clientX - dragStart.x;
 		const dy = e.clientY - dragStart.y;
 		if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragStart.moved = true;
@@ -153,6 +222,12 @@
 			camY = ncy;
 			draw();
 		}
+	}
+
+	function onPointerLeave() {
+		dragStart = null;
+		hoverTile = null;
+		draw();
 	}
 
 	function onPointerUp(e: PointerEvent) {
@@ -198,7 +273,10 @@
 			return;
 		}
 		if (action === 'place') {
-			tiles = [...tiles, { x, y, type: String(type), ownerId: myId, power: j.power ?? 0 }];
+			tiles = [
+				...tiles,
+				{ x, y, type: String(type), ownerId: myId, power: j.power ?? 0, lastCollectAt: Date.now() }
+			];
 			if (typeof j.cost === 'number') points = Math.max(0, (points ?? 0) - j.cost);
 			showTip(`建造成功：${j.cost ?? 0} 积分${j.power ? `，兵力 ${j.power}` : ''}`);
 		} else if (action === 'remove') {
@@ -237,7 +315,18 @@
 		const parts = Object.entries(g)
 			.map(([k, v]) => `${k} +${v}`)
 			.join(' ');
-		showTip(parts ? `收集成功：${parts}` : '没有可收集的产出建筑');
+		const pend = (j.totalProducers ?? 0) - (j.readyCount ?? 0);
+		if (parts) {
+			showTip(
+				pend > 0
+					? `收集成功：${parts}（还有 ${pend} 个设施未就绪，每 30 分钟产出一次）`
+					: `收集成功：${parts}`
+			);
+		} else {
+			showTip(
+				pend > 0 ? `设施都还在冷却中：${pend} 个未就绪，每 30 分钟产出一次` : '没有可收集的产出建筑'
+			);
+		}
 		await refresh();
 	}
 
@@ -319,7 +408,13 @@
 	onMount(() => {
 		draw();
 		const timer = setInterval(refresh, 15000);
-		return () => clearInterval(timer);
+		const hoverTimer = setInterval(() => {
+			if (hoverTile) draw();
+		}, 1000);
+		return () => {
+			clearInterval(timer);
+			clearInterval(hoverTimer);
+		};
 	});
 </script>
 
@@ -340,8 +435,8 @@
 				onpointerdown={onPointerDown}
 				onpointermove={onPointerMove}
 				onpointerup={onPointerUp}
-				onpointerleave={onPointerUp}
-				title="拖动：平移地图 · 点击：放置/拆除"
+				onpointerleave={onPointerLeave}
+				title="拖动：平移地图 · 点击：放置/拆除 · 悬停：查看设施状态"
 			></canvas>
 			{#if tip}<div class="tip">{tip}</div>{/if}
 			<div class="cam-bar">
@@ -370,6 +465,7 @@
 					>
 				</div>
 				{#if tool === 'build'}
+					<p class="hint">⏱ 产出建筑每 30 分钟可收获一次，悬停地图上的设施可查看进度</p>
 					<h3>选择建筑（消耗积分）</h3>
 					<div class="builds">
 						{#each Object.entries(BUILDS) as [key, b] (key)}

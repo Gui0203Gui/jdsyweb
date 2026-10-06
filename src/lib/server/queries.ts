@@ -1630,6 +1630,9 @@ export const GAME_COLLECT_RATES: Record<string, number> = {
 	flower: 1
 };
 
+// 产出冷却：每个产出设施每 30 分钟产生一次收入
+export const GAME_COLLECT_INTERVAL_MS = 30 * 60 * 1000;
+
 // 兑换率：花资源换花朵；铁/木/麦换积分（10 资源 -> 1 积分）
 export const GAME_EXCHANGE_POINTS_PER = 10; // 每 10 点资源换 1 积分
 export const GAME_DAILY_POINT_CAP = 100; // 每日最多通过资源兑换获得积分
@@ -1779,6 +1782,7 @@ export async function placeGameTile(
 		type,
 		ownerId,
 		power,
+		lastCollectAt: Date.now(),
 		createdAt: new Date()
 	});
 	await touchGameMap(db, mapId);
@@ -1955,29 +1959,40 @@ export async function addGameResource(
 		});
 }
 
-/** 收集玩家在该地图上的全部产出建筑资源 */
+/** 收集产出：只收集冷却完成（≥30 分钟）的设施，并刷新其冷却时间 */
 export async function collectGameResources(
 	db: Db,
 	mapId: string,
 	userId: string
-): Promise<Record<string, number>> {
+): Promise<{ gained: Record<string, number>; readyCount: number; totalProducers: number }> {
+	const now = Date.now();
 	const tiles = await db
-		.select({ type: gameTiles.type })
+		.select({ id: gameTiles.id, type: gameTiles.type, lastCollectAt: gameTiles.lastCollectAt })
 		.from(gameTiles)
 		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.ownerId, userId)));
 	const gained: Record<string, number> = {};
+	const dueIds: string[] = [];
 	for (const t of tiles) {
 		const rate = GAME_COLLECT_RATES[t.type];
 		if (rate && t.type in GAME_BUILDINGS) {
 			const rtype = GAME_BUILDINGS[t.type as GameBuildingType].resource;
 			if (!rtype) continue;
-			gained[rtype] = (gained[rtype] ?? 0) + rate;
+			if (now - (t.lastCollectAt ?? 0) >= GAME_COLLECT_INTERVAL_MS) {
+				gained[rtype] = (gained[rtype] ?? 0) + rate;
+				dueIds.push(t.id);
+			}
 		}
+	}
+	if (dueIds.length > 0) {
+		await db.update(gameTiles).set({ lastCollectAt: now }).where(inArray(gameTiles.id, dueIds));
 	}
 	for (const [rtype, amount] of Object.entries(gained)) {
 		await addGameResource(db, userId, mapId, rtype, amount);
 	}
-	return gained;
+	const totalProducers = tiles.filter(
+		(t) => GAME_COLLECT_RATES[t.type] && t.type in GAME_BUILDINGS
+	).length;
+	return { gained, readyCount: dueIds.length, totalProducers };
 }
 
 export async function addGameChat(db: Db, mapId: string, userId: string, content: string) {

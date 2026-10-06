@@ -30,7 +30,14 @@ export const GET: RequestHandler = async ({ locals }) => {
 	]);
 	return json({
 		world: { id: world.id, name: world.name },
-		tiles: tiles.map((t) => ({ x: t.x, y: t.y, type: t.type, ownerId: t.ownerId, power: t.power })),
+		tiles: tiles.map((t) => ({
+			x: t.x,
+			y: t.y,
+			type: t.type,
+			ownerId: t.ownerId,
+			power: t.power,
+			lastCollectAt: t.lastCollectAt
+		})),
 		chat: chat.map((c) => ({
 			id: c.chat.id,
 			username: c.username,
@@ -77,8 +84,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ ok: true, removed: r.removed, battle: r.battle ?? null });
 		}
 		case 'collect': {
-			const gained = await collectGameResources(locals.db, wid, uid);
-			return json({ ok: true, gained });
+			const r = await collectGameResources(locals.db, wid, uid);
+			return json({
+				ok: true,
+				gained: r.gained,
+				readyCount: r.readyCount,
+				totalProducers: r.totalProducers
+			});
 		}
 		case 'chat': {
 			const content = String(body?.content ?? '').trim();
