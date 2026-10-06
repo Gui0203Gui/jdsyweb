@@ -1,8 +1,11 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { desc, eq } from 'drizzle-orm';
 import { checkAchievements, listForums, notifyMentions } from '#lib/server/queries';
 import { posts } from '#lib/server/db/schema';
 import { awardPoints } from '#lib/server/points';
+
+const POST_INTERVAL_MS = 5 * 60 * 1000; // 普通用户每 5 分钟可发一次帖（管理员不限）
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(302, '/login?redirect=/post/new');
@@ -28,6 +31,22 @@ export const actions: Actions = {
 					.map((k) => k.trim())
 					.filter((k) => k.startsWith('img/'))
 			: [];
+
+		// 发帖频率限制：5 分钟一次（管理员不限）
+		if (locals.user.role !== 'admin') {
+			const last = await locals.db
+				.select({ createdAt: posts.createdAt })
+				.from(posts)
+				.where(eq(posts.authorId, locals.user.id))
+				.orderBy(desc(posts.createdAt))
+				.limit(1);
+			const lastAt = last[0]?.createdAt?.getTime?.() ?? 0;
+			const waitMs = POST_INTERVAL_MS - (Date.now() - lastAt);
+			if (waitMs > 0) {
+				const m = Math.ceil(waitMs / 60000);
+				return fail(429, { error: `发帖太频繁：每 5 分钟只能发一次帖，请 ${m} 分钟后再试` });
+			}
+		}
 
 		if (!forumId) return fail(400, { error: '请选择板块' });
 		if (!title) return fail(400, { error: '标题不能为空' });
