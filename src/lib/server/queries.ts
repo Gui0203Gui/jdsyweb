@@ -27,7 +27,8 @@ import {
 	gameTiles,
 	gameResources,
 	gameChats,
-	gameExchanges
+	gameExchanges,
+	gameSteals
 } from './db/schema';
 import { FLOWER_TYPES, type FlowerType } from '#lib/flowers';
 import { todayStr } from './points';
@@ -1536,7 +1537,7 @@ export async function notifyMentions(
 
 // ---------- 游戏《交大工坊》 ----------
 
-export const GAME_MAP_SIZE = 40; // 地图 40x40 网格
+export const GAME_MAP_SIZE = 100; // 公共地图 100x100 网格（占地竞争）
 export const GAME_BUILDINGS = {
 	miner: {
 		name: '⛏️ 矿机',
@@ -1601,6 +1602,25 @@ export const GAME_COLLECT_RATES: Record<string, number> = {
 export const GAME_EXCHANGE_POINTS_PER = 10; // 每 10 点资源换 1 积分
 export const GAME_DAILY_POINT_CAP = 100; // 每日最多通过资源兑换获得积分
 export const GAME_FLOWER_RATE = 5; // 5 点花资源 -> 1 朵花
+
+// 公共世界：所有人共用同一张地图（固定 ID）
+export const GAME_WORLD_ID = 'world-main';
+
+/** 获取或初始化公共世界（首次访问时自动创建，由首位管理员担任创建者） */
+export async function getOrCreateWorldMap(db: Db) {
+	const rows = await db.select().from(gameMaps).where(eq(gameMaps.id, GAME_WORLD_ID)).limit(1);
+	if (rows.length > 0) return rows[0];
+	const admins = await db
+		.select({ id: users.id })
+		.from(users)
+		.where(eq(users.role, 'admin'))
+		.limit(1);
+	if (!admins[0]) return null;
+	await db
+		.insert(gameMaps)
+		.values({ id: GAME_WORLD_ID, name: '交大工坊·公共世界', ownerId: admins[0].id });
+	return (await db.select().from(gameMaps).where(eq(gameMaps.id, GAME_WORLD_ID)).get()) ?? null;
+}
 
 export async function createGameMap(db: Db, name: string, ownerId: string): Promise<string> {
 	const id = crypto.randomUUID();
@@ -1673,16 +1693,14 @@ export async function removeGameTile(
 	db: Db,
 	mapId: string,
 	x: number,
-	y: number,
-	ownerId: string
+	y: number
 ): Promise<{ ok: boolean; error?: string }> {
 	const rows = await db
-		.select({ id: gameTiles.id, ownerId: gameTiles.ownerId })
+		.select({ id: gameTiles.id })
 		.from(gameTiles)
 		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.x, x), eq(gameTiles.y, y)))
 		.limit(1);
 	if (rows.length === 0) return { ok: false, error: '该处无建筑' };
-	if (rows[0].ownerId !== ownerId) return { ok: false, error: '只能拆除自己的建筑' };
 	await db.delete(gameTiles).where(eq(gameTiles.id, rows[0].id));
 	await touchGameMap(db, mapId);
 	return { ok: true };
@@ -1838,4 +1856,130 @@ export async function exchangeGameFlower(
 		await addItem(db, userId, flower, 'game');
 	}
 	return { ok: true, flower };
+}
+
+// ---------- 竞争玩法：偷抢 / 排行榜 ----------
+
+export const GAME_STEAL_PER_TARGET_DAILY = 10; // 每人每天从同一目标最多偷 10 资源
+export const GAME_STEAL_PER_TYPE = 5; // 每次每种资源最多偷 5
+
+/** 偷取目标玩家在公共地图上的资源（每人每天同一目标有上限，防刷） */
+export async function stealGameResources(
+	db: Db,
+	attackerId: string,
+	targetId: string,
+	mapId: string
+): Promise<{ ok: boolean; gained?: Record<string, number>; error?: string }> {
+	if (attackerId === targetId) return { ok: false, error: '不能偷自己' };
+	const today = todayStr();
+	const usedRows = await db
+		.select({ amount: gameSteals.amount })
+		.from(gameSteals)
+		.where(
+			and(
+				eq(gameSteals.attackerId, attackerId),
+				eq(gameSteals.targetId, targetId),
+				eq(gameSteals.date, today)
+			)
+		)
+		.limit(1);
+	const used = usedRows[0]?.amount ?? 0;
+	const room = GAME_STEAL_PER_TARGET_DAILY - used;
+	if (room <= 0) return { ok: false, error: '今日从该玩家已偷到上限' };
+
+	const targetRes = await listGameResources(db, targetId, mapId);
+	const gained: Record<string, number> = {};
+	let stolen = 0;
+	for (const [rtype, amt] of Object.entries(targetRes)) {
+		if (amt <= 0) continue;
+		const take = Math.min(amt, GAME_STEAL_PER_TYPE, room - stolen);
+		if (take <= 0) continue;
+		await db
+			.update(gameResources)
+			.set({ amount: sql`${gameResources.amount} - ${take}` })
+			.where(
+				and(
+					eq(gameResources.userId, targetId),
+					eq(gameResources.mapId, mapId),
+					eq(gameResources.resourceType, rtype)
+				)
+			);
+		await addGameResource(db, attackerId, mapId, rtype, take);
+		gained[rtype] = take;
+		stolen += take;
+		if (stolen >= room) break;
+	}
+	if (stolen === 0) return { ok: false, error: '对方没有可偷的资源' };
+	await db
+		.insert(gameSteals)
+		.values({ attackerId, targetId, date: today, amount: stolen })
+		.onConflictDoUpdate({
+			target: [gameSteals.attackerId, gameSteals.targetId, gameSteals.date],
+			set: { amount: sql`${gameSteals.amount} + ${stolen}` }
+		});
+	return { ok: true, gained };
+}
+
+/** 公共世界排行榜：按建筑数、资源总量、积分 */
+/** 公共世界所有玩家的资源汇总（用于偷抢目标列表） */
+export async function listWorldPlayers(db: Db, mapId: string) {
+	const rows = await db
+		.select({
+			userId: gameResources.userId,
+			username: users.username,
+			resourceType: gameResources.resourceType,
+			amount: gameResources.amount
+		})
+		.from(gameResources)
+		.innerJoin(users, eq(users.id, gameResources.userId))
+		.where(eq(gameResources.mapId, mapId));
+	const byUser = new Map<
+		string,
+		{ userId: string; username: string; resources: Record<string, number> }
+	>();
+	for (const r of rows) {
+		let u = byUser.get(r.userId);
+		if (!u) {
+			u = { userId: r.userId, username: r.username, resources: {} };
+			byUser.set(r.userId, u);
+		}
+		u.resources[r.resourceType] = r.amount;
+	}
+	return [...byUser.values()];
+}
+
+export async function getGameRanking(db: Db, mapId: string, limit = 20) {
+	// 分步查询 + 内存聚合（避免子查询渲染问题）
+	const counts = await db
+		.select({ ownerId: gameTiles.ownerId, buildingCount: sql<number>`count(*)` })
+		.from(gameTiles)
+		.where(eq(gameTiles.mapId, mapId))
+		.groupBy(gameTiles.ownerId);
+	const resRows = await db
+		.select({
+			userId: gameResources.userId,
+			total: sql<number>`coalesce(sum(amount), 0)`
+		})
+		.from(gameResources)
+		.where(eq(gameResources.mapId, mapId))
+		.groupBy(gameResources.userId);
+	const ids = [...new Set([...counts.map((c) => c.ownerId), ...resRows.map((r) => r.userId)])];
+	if (ids.length === 0) return [];
+	const userRows = await db
+		.select({ id: users.id, username: users.username, points: users.points })
+		.from(users)
+		.where(inArray(users.id, ids));
+	const cm = new Map(counts.map((c) => [c.ownerId, c.buildingCount]));
+	const rm = new Map(resRows.map((r) => [r.userId, r.total]));
+	return userRows
+		.map((u) => ({
+			userId: u.id,
+			username: u.username,
+			points: u.points,
+			buildingCount: cm.get(u.id) ?? 0,
+			totalResources: rm.get(u.id) ?? 0
+		}))
+		.filter((u) => u.buildingCount > 0)
+		.sort((a, b) => b.buildingCount - a.buildingCount)
+		.slice(0, limit);
 }

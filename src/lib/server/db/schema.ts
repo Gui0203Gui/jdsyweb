@@ -646,5 +646,24 @@ export type GameResource = typeof gameResources.$inferSelect;
 export type GameChat = typeof gameChats.$inferSelect;
 export type GameExchange = typeof gameExchanges.$inferSelect;
 
+export const gameSteals = sqliteTable(
+	'game_steals',
+	{
+		attackerId: text('attacker_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		targetId: text('target_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		date: text('date').notNull(),
+		amount: integer('amount').notNull().default(0)
+	},
+	(table) => [
+		primaryKey({ columns: [table.attackerId, table.targetId, table.date] }),
+		index('idx_game_steals_target').on(table.targetId)
+	]
+);
+export type GameSteal = typeof gameSteals.$inferSelect;
+
 /** 便捷：SQL 常量，用于软删除/时间等场景 */
 export const now = sql`(unixepoch() * 1000)`;

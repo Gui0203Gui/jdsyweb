@@ -5,29 +5,29 @@ import {
 	collectGameResources,
 	exchangeGameFlower,
 	exchangeGameResourcesToPoints,
-	getGameMap,
+	getGameRanking,
+	getOrCreateWorldMap,
+	listWorldPlayers,
 	listGameChat,
 	listGameResources,
 	listGameTiles,
 	placeGameTile,
-	removeGameTile
+	removeGameTile,
+	stealGameResources
 } from '#lib/server/queries';
 
-export const GET: RequestHandler = async ({ params, locals }) => {
-	const map = await getGameMap(locals.db, params.id);
-	if (!map) return json({ error: '地图不存在' }, { status: 404 });
-	const [tiles, chat, resources] = await Promise.all([
-		listGameTiles(locals.db, params.id),
-		listGameChat(locals.db, params.id, 50),
-		locals.user ? listGameResources(locals.db, locals.user.id, params.id) : null
+export const GET: RequestHandler = async ({ locals }) => {
+	const world = await getOrCreateWorldMap(locals.db);
+	if (!world) return json({ error: '世界初始化失败' }, { status: 500 });
+	const [tiles, chat, resources, players, ranking] = await Promise.all([
+		listGameTiles(locals.db, world.id),
+		listGameChat(locals.db, world.id, 50),
+		locals.user ? listGameResources(locals.db, locals.user.id, world.id) : null,
+		listWorldPlayers(locals.db, world.id),
+		getGameRanking(locals.db, world.id, 20)
 	]);
 	return json({
-		map: {
-			id: map.map.id,
-			name: map.map.name,
-			ownerName: map.ownerName,
-			createdAt: map.map.createdAt
-		},
+		world: { id: world.id, name: world.name },
 		tiles: tiles.map((t) => ({ x: t.x, y: t.y, type: t.type, ownerId: t.ownerId })),
 		chat: chat.map((c) => ({
 			id: c.chat.id,
@@ -35,18 +35,21 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			content: c.chat.content,
 			createdAt: c.chat.createdAt
 		})),
-		resources: locals.user ? resources : null
+		resources: locals.user ? resources : null,
+		players: players.filter((p) => p.userId !== locals.user?.id),
+		ranking
 	});
 };
 
-export const POST: RequestHandler = async ({ request, params, locals }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) return json({ error: '请先登录' }, { status: 401 });
-	const map = await getGameMap(locals.db, params.id);
-	if (!map) return json({ error: '地图不存在' }, { status: 404 });
+	const world = await getOrCreateWorldMap(locals.db);
+	if (!world) return json({ error: '世界初始化失败' }, { status: 500 });
 
 	const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
 	const action = String(body?.action ?? '');
 	const uid = locals.user.id;
+	const wid = world.id;
 
 	switch (action) {
 		case 'place': {
@@ -55,7 +58,7 @@ export const POST: RequestHandler = async ({ request, params, locals }) => {
 			const type = String(body?.type ?? '');
 			if (!Number.isInteger(x) || !Number.isInteger(y))
 				return json({ error: '坐标无效' }, { status: 400 });
-			const r = await placeGameTile(locals.db, params.id, x, y, type, uid);
+			const r = await placeGameTile(locals.db, wid, x, y, type, uid);
 			return r.ok ? json({ ok: true }) : json({ error: r.error }, { status: 400 });
 		}
 		case 'remove': {
@@ -63,17 +66,17 @@ export const POST: RequestHandler = async ({ request, params, locals }) => {
 			const y = Number(body?.y);
 			if (!Number.isInteger(x) || !Number.isInteger(y))
 				return json({ error: '坐标无效' }, { status: 400 });
-			const r = await removeGameTile(locals.db, params.id, x, y, uid);
+			const r = await removeGameTile(locals.db, wid, x, y);
 			return r.ok ? json({ ok: true }) : json({ error: r.error }, { status: 400 });
 		}
 		case 'collect': {
-			const gained = await collectGameResources(locals.db, params.id, uid);
+			const gained = await collectGameResources(locals.db, wid, uid);
 			return json({ ok: true, gained });
 		}
 		case 'chat': {
 			const content = String(body?.content ?? '').trim();
 			if (!content) return json({ error: '消息不能为空' }, { status: 400 });
-			await addGameChat(locals.db, params.id, uid, content);
+			await addGameChat(locals.db, wid, uid, content);
 			return json({ ok: true });
 		}
 		case 'exchangePoints': {
@@ -84,7 +87,7 @@ export const POST: RequestHandler = async ({ request, params, locals }) => {
 			const r = await exchangeGameResourcesToPoints(
 				locals.db,
 				uid,
-				params.id,
+				wid,
 				resourceType as 'iron' | 'wood' | 'wheat'
 			);
 			return r.ok
@@ -92,9 +95,17 @@ export const POST: RequestHandler = async ({ request, params, locals }) => {
 				: json({ error: r.error }, { status: 400 });
 		}
 		case 'exchangeFlower': {
-			const r = await exchangeGameFlower(locals.db, uid, params.id);
+			const r = await exchangeGameFlower(locals.db, uid, wid);
 			return r.ok
 				? json({ ok: true, flower: r.flower })
+				: json({ error: r.error }, { status: 400 });
+		}
+		case 'steal': {
+			const targetId = String(body?.targetId ?? '');
+			if (!targetId) return json({ error: '请选择偷取目标' }, { status: 400 });
+			const r = await stealGameResources(locals.db, uid, targetId, wid);
+			return r.ok
+				? json({ ok: true, gained: r.gained })
 				: json({ error: r.error }, { status: 400 });
 		}
 		default:
