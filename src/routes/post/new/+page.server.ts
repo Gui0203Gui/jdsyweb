@@ -1,6 +1,6 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { listForums } from '#lib/server/queries';
+import { checkAchievements, listForums, notifyMentions } from '#lib/server/queries';
 import { posts } from '#lib/server/db/schema';
 import { awardPoints } from '#lib/server/points';
 
@@ -36,9 +36,32 @@ export const actions: Actions = {
 		if (content.length > 20000) return fail(400, { error: '内容过长（最多 20000 字）' });
 		if (images.length > 50) return fail(400, { error: '图片最多 50 张' });
 
+		// 投票帖：pollEnabled=1 时解析选项（每行一个，2~10 项）
+		let pollOptions: string[] | null = null;
+		if (String(form.get('pollEnabled') ?? '') === '1') {
+			const raw = String(form.get('pollOptions') ?? '').trim();
+			const options = raw
+				.split('\n')
+				.map((o) => o.trim())
+				.filter((o) => o.length > 0);
+			if (options.length < 2) return fail(400, { error: '投票帖至少需要 2 个选项' });
+			if (options.length > 10) return fail(400, { error: '投票选项最多 10 个' });
+			for (const o of options) {
+				if (o.length > 60) return fail(400, { error: '单个选项最长 60 字' });
+			}
+			pollOptions = options;
+		}
+
 		const inserted = await locals.db
 			.insert(posts)
-			.values({ forumId, authorId: locals.user.id, title, content, images: JSON.stringify(images) })
+			.values({
+				forumId,
+				authorId: locals.user.id,
+				title,
+				content,
+				images: JSON.stringify(images),
+				pollOptions: pollOptions ? JSON.stringify(pollOptions) : null
+			})
 			.returning({ id: posts.id });
 
 		const postId = inserted[0]?.id;
@@ -46,6 +69,12 @@ export const actions: Actions = {
 
 		// 发帖积分 +10
 		await awardPoints(locals.db, locals.user.id, 'post', postId);
+
+		// @提及通知
+		await notifyMentions(locals.db, `${title} ${content}`, locals.user.id, postId);
+
+		// 成就检查：首个帖子
+		await checkAchievements(locals.db, locals.user.id);
 
 		redirect(303, `/post/${postId}`);
 	}

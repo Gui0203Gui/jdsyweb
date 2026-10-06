@@ -1,18 +1,25 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
+	castPollVote,
+	checkAchievements,
 	createNotification,
+	createReport,
+	getPollResult,
 	getPostDetail,
+	giftItemByType,
 	hasPointsFor,
 	incrementPostViews,
 	isPostFavorited,
 	listComments,
+	notifyMentions,
 	toggleFavorite,
 	toggleLike
 } from '#lib/server/queries';
 import { comments, posts } from '#lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { awardPoints } from '#lib/server/points';
+import { FLOWER_TYPES, FLOWERS, type FlowerType } from '#lib/flowers';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const detail = await getPostDetail(locals.db, params.id);
@@ -21,9 +28,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	// 浏览量 +1（忽略失败，不影响阅读）
 	await incrementPostViews(locals.db, params.id);
 
-	const [commentList, favorited] = await Promise.all([
+	const [commentList, favorited, pollResult] = await Promise.all([
 		listComments(locals.db, params.id),
-		locals.user ? isPostFavorited(locals.db, locals.user.id, params.id) : Promise.resolve(false)
+		locals.user ? isPostFavorited(locals.db, locals.user.id, params.id) : Promise.resolve(false),
+		getPollResult(locals.db, params.id, locals.user?.id ?? null)
 	]);
 
 	return {
@@ -31,12 +39,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		author: detail.author,
 		forum: detail.forum,
 		comments: commentList,
-		favorited
+		favorited,
+		pollResult
 	};
 };
 
 export const actions: Actions = {
-	/** 回复帖子（+5 积分，并通知楼主） */
+	/** 回复帖子（+5 积分，并通知楼主；支持 @提及） */
 	comment: async ({ request, params, locals }) => {
 		if (!locals.user) return fail(401, { error: '请先登录再回复' });
 
@@ -58,6 +67,9 @@ export const actions: Actions = {
 		const commentId = inserted[0]?.id;
 		if (commentId) await awardPoints(locals.db, locals.user.id, 'comment', commentId);
 
+		// @提及通知
+		await notifyMentions(locals.db, content, locals.user.id, params.id);
+
 		// 通知楼主（自己回复自己不通知）
 		if (detail.post.authorId !== locals.user.id) {
 			await createNotification(locals.db, {
@@ -69,7 +81,23 @@ export const actions: Actions = {
 			});
 		}
 
+		// 成就检查：首条评论
+		await checkAchievements(locals.db, locals.user.id);
+
 		return { ok: true };
+	},
+
+	/** 投票（每帖每用户一票，可改票） */
+	vote: async ({ request, params, locals }) => {
+		if (!locals.user) return fail(401, { error: '请先登录再投票' });
+
+		const form = await request.formData();
+		const option = Number(form.get('option') ?? -1);
+		if (!Number.isInteger(option) || option < 0) return fail(400, { error: '选项无效' });
+
+		const result = await castPollVote(locals.db, params.id, locals.user.id, option);
+		if (!result.ok) return fail(400, { error: result.error });
+		return { ok: true, choice: result.choice };
 	},
 
 	/** 点赞 / 取消点赞（点赞 +2 积分，并通知被赞者） */
@@ -121,6 +149,8 @@ export const actions: Actions = {
 					content: `赞了你的${title}`,
 					refId: targetId
 				});
+				// 成就检查：被赞者收到赞
+				await checkAchievements(locals.db, ownerId);
 			}
 		}
 		return { liked };
@@ -155,5 +185,67 @@ export const actions: Actions = {
 			}
 		}
 		return { favorited };
+	},
+
+	/** 送花打赏（B2）：消耗自己背包中的一朵花，赠予楼主 */
+	giftFlower: async ({ request, params, locals }) => {
+		if (!locals.user) return fail(401, { error: '请先登录再送花' });
+
+		const detail = await getPostDetail(locals.db, params.id);
+		if (!detail) return fail(404, { error: '帖子不存在' });
+		if (detail.post.authorId === locals.user.id) {
+			return fail(400, { error: '不能给自己送花' });
+		}
+
+		const form = await request.formData();
+		const flowerType = String(form.get('flowerType') ?? '');
+		if (!FLOWER_TYPES.includes(flowerType as FlowerType)) {
+			return fail(400, { error: '无效的花' });
+		}
+
+		const result = await giftItemByType(
+			locals.db,
+			locals.user.id,
+			detail.author,
+			flowerType as FlowerType
+		);
+		if (!result.ok) return fail(400, { error: result.error });
+
+		await createNotification(locals.db, {
+			userId: detail.post.authorId,
+			actorId: locals.user.id,
+			type: 'gift',
+			content: `送了你一朵「${FLOWERS[flowerType as FlowerType].name}」`,
+			refId: params.id
+		});
+
+		// 成就检查：拥有称号/集齐三花（接收方收花后可能补成就）
+		await checkAchievements(locals.db, detail.post.authorId);
+
+		return { ok: true };
+	},
+
+	/** 举报（D1）：举报帖子或评论 */
+	report: async ({ request, params, locals }) => {
+		if (!locals.user) return fail(401, { error: '请先登录再举报' });
+
+		const form = await request.formData();
+		const targetType = String(form.get('targetType') ?? '');
+		if (targetType !== 'post' && targetType !== 'comment')
+			return fail(400, { error: '无效的举报目标' });
+		const targetId = String(form.get('targetId') ?? '');
+		if (!targetId) return fail(400, { error: '缺少举报目标' });
+		const reason = String(form.get('reason') ?? '').trim();
+		if (!reason) return fail(400, { error: '请填写举报理由' });
+		if (reason.length > 200) return fail(400, { error: '举报理由过长（最多 200 字）' });
+
+		// 防止对自己内容举报无意义——允许但记录；同一目标不限制次数，管理员处理
+		await createReport(locals.db, {
+			reporterId: locals.user.id,
+			targetType,
+			targetId,
+			reason
+		});
+		return { ok: true };
 	}
 };

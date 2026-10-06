@@ -8,7 +8,10 @@
 		reply: '💬',
 		like: '👍',
 		favorite: '🔖',
-		system: '📢'
+		system: '📢',
+		mention: '📣',
+		gift: '🌷',
+		follow: '➕'
 	};
 
 	function fmtDate(ts: Date | number): string {

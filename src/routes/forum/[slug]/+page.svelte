@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { badgeCls, badgeShort } from '#lib/flowers';
+	import LevelChip from '#lib/components/LevelChip.svelte';
 	import type { PageData } from './$types';
 	import { formatRelativeTime } from '#lib/time';
 	import { avatarUrl } from '#lib/avatar';
@@ -56,7 +57,8 @@
 						>{item.author.username}
 						{#if item.author.badge}<span class="user-badge badge-{badgeCls(item.author.badge)}"
 								>【{badgeShort(item.author.badge)}】</span
-							>{/if} ⭐{item.author.points}</span
+							>{/if}
+						<LevelChip points={item.author.points} /> ⭐{item.author.points}</span
 					>
 					<span>·</span>
 					<span>{formatRelativeTime(item.post.createdAt)}</span>

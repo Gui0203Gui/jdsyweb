@@ -46,9 +46,7 @@ export async function getFile(
 }
 
 /** 读取文件本体 + 附加元数据（如涂鸦画布的最后编辑者/时间） */
-export async function getFileInfo(
-	key: string
-): Promise<{
+export async function getFileInfo(key: string): Promise<{
 	data: ArrayBuffer;
 	contentType: string;
 	metadata: Record<string, unknown> | null;

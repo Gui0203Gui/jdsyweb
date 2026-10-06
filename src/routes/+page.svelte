@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { badgeCls, badgeShort } from '#lib/flowers';
+	import LevelChip from '#lib/components/LevelChip.svelte';
 	import type { PageData } from './$types';
 	import { formatRelativeTime } from '#lib/time';
 	import { avatarUrl } from '#lib/avatar';
@@ -26,6 +27,18 @@
 		{/if}
 	</div>
 </div>
+
+{#if data.announcements.length > 0}
+	<section class="announcement-bar">
+		<h2 class="section-title">📢 吧内公告</h2>
+		{#each data.announcements as ann (ann.announcement.id)}
+			<div class="announcement-item">
+				<span class="a-title">📌 {ann.announcement.title}</span>
+				<span class="a-content">{ann.announcement.content}</span>
+			</div>
+		{/each}
+	</section>
+{/if}
 
 {#if data.forums.length > 0}
 	<section class="mb-16">
@@ -151,7 +164,8 @@
 							>{item.author.username}
 							{#if item.author.badge}<span class="user-badge badge-{badgeCls(item.author.badge)}"
 									>【{badgeShort(item.author.badge)}】</span
-								>{/if} ⭐{item.author.points}</span
+								>{/if}
+							<LevelChip points={item.author.points} /> ⭐{item.author.points}</span
 						>
 						<span>·</span>
 						<span>{formatRelativeTime(item.post.createdAt)}</span>

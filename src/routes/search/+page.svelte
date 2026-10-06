@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { badgeCls, badgeShort } from '#lib/flowers';
+	import LevelChip from '#lib/components/LevelChip.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -48,7 +49,8 @@
 						>{row.author.username}
 						{#if row.author.badge}<span class="user-badge badge-{badgeCls(row.author.badge)}"
 								>【{badgeShort(row.author.badge)}】</span
-							>{/if}</span
+							>{/if}
+						<LevelChip points={row.author.points} /></span
 					>
 					<span>💬 {row.commentCount}</span>
 					<span>👍 {row.likeCount}</span>

@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { badgeCls, badgeShort } from '#lib/flowers';
+	import LevelChip from '#lib/components/LevelChip.svelte';
+	import { levelForPoints, nextLevel } from '#lib/levels';
+	import { ACHIEVEMENT_INFOS } from '#lib/achievements';
 	import type { PageProps } from './$types';
 	import { enhance } from '$app/forms';
 
@@ -14,6 +17,11 @@
 		work: '上传作品',
 		shop: '商店兑换'
 	};
+
+	const level = $derived(levelForPoints(data.profile.user.points));
+	const next = $derived(nextLevel(data.profile.user.points));
+	const ownedKeys = $derived(new Set(data.achievements.map((a) => a.key)));
+	const allAch = $derived(Object.values(ACHIEVEMENT_INFOS));
 
 	function fmtDate(ts: Date | number): string {
 		const d = new Date(ts);
@@ -69,6 +77,7 @@
 		<div class="profile-info">
 			<div class="profile-name">
 				{data.profile.user.username}
+				<LevelChip points={data.profile.user.points} />
 				{#if data.profile.user.badge}<span
 						class="user-badge badge-{badgeCls(data.profile.user.badge)}"
 						style="margin-left:6px;">【{badgeShort(data.profile.user.badge)}】</span
@@ -80,6 +89,11 @@
 			<div class="profile-meta">
 				<span>📅 注册于 {fmtDate(data.profile.user.createdAt).slice(0, 10)}</span>
 				<span>⭐ 积分 {data.profile.user.points}</span>
+				<span>
+					{level.icon} Lv.{level.level}
+					{level.name}
+					{#if next}（还差 {next.min - data.profile.user.points} 分升级）{/if}
+				</span>
 			</div>
 			{#if data.profile.user.bio}
 				<div class="profile-bio">{data.profile.user.bio}</div>
@@ -113,6 +127,19 @@
 				<button type="submit" class="btn btn-ghost btn-sm" style="white-space:nowrap;">保存</button>
 			</div>
 		</form>
+	</div>
+</div>
+
+<div class="card mt-16">
+	<h2 class="section-title">🏆 成就墙（{data.achievements.length}/{allAch.length}）</h2>
+	<div class="ach-grid">
+		{#each allAch as ach (ach.key)}
+			<div class="ach-card {ownedKeys.has(ach.key) ? '' : 'locked'}" title={ach.description}>
+				<span class="ach-icon">{ownedKeys.has(ach.key) ? ach.icon : '🔒'}</span>
+				<div class="ach-name">{ach.name}</div>
+				<div class="ach-desc">{ach.description}</div>
+			</div>
+		{/each}
 	</div>
 </div>
 

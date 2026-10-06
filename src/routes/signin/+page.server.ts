@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { trySignIn } from '#lib/server/points';
+import { checkAchievements } from '#lib/server/queries';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	// 防止直接访问 /signin 页面，仅作为 action 端点
@@ -12,6 +13,8 @@ export const actions: Actions = {
 	default: async ({ locals }) => {
 		if (!locals.user) return fail(401, { error: '请先登录再签到' });
 		const result = await trySignIn(locals.db, locals.user.id);
+		// 成就检查：累计签到
+		if (result.ok) await checkAchievements(locals.db, locals.user.id);
 		return { ok: result.ok, signed: result.signed };
 	}
 };

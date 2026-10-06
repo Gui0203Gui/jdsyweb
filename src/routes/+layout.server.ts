@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { countUnreadNotifications } from '#lib/server/queries';
+import { countUnreadMessages, countUnreadNotifications } from '#lib/server/queries';
 import { todayStr } from '#lib/server/points';
 import { signIns } from '#lib/server/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -14,7 +14,10 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			.where(and(eq(signIns.userId, locals.user.id), eq(signIns.date, todayStr())))
 			.get();
 
-		const unreadCount = await countUnreadNotifications(locals.db, locals.user.id);
+		const [unreadCount, unreadMessages] = await Promise.all([
+			countUnreadNotifications(locals.db, locals.user.id),
+			countUnreadMessages(locals.db, locals.user.id)
+		]);
 
 		user = {
 			id: locals.user.id,
@@ -23,7 +26,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			role: locals.user.role,
 			points: locals.user.points,
 			signedToday: Boolean(signedToday),
-			unreadCount
+			unreadCount: unreadCount + unreadMessages,
+			unreadMessages
 		};
 	}
 

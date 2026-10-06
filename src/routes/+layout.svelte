@@ -2,6 +2,7 @@
 	import '../app.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { avatarUrl } from '#lib/avatar';
+	import LevelChip from '#lib/components/LevelChip.svelte';
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
 
@@ -10,6 +11,23 @@
 	$effect(() => {
 		document.title = '交大实验网 - 民间贴吧';
 	});
+
+	// 深色模式（D4）：初始读取 localStorage，切换后写入并更新 data-theme
+	let theme = $state<'light' | 'dark'>('light');
+
+	$effect(() => {
+		const saved = localStorage.getItem('jdsy_theme');
+		if (saved === 'dark') theme = 'dark';
+	});
+
+	$effect(() => {
+		document.documentElement.setAttribute('data-theme', theme);
+	});
+
+	function toggleTheme() {
+		theme = theme === 'dark' ? 'light' : 'dark';
+		localStorage.setItem('jdsy_theme', theme);
+	}
 </script>
 
 <svelte:head>
@@ -37,6 +55,14 @@
 						<a href="/signin" class="btn btn-ghost btn-sm">📅 签到</a>
 					{/if}
 					<a href="/post/new" class="btn btn-primary btn-sm">发帖</a>
+					<a href="/messages" class="bell-link" title="私信" style="margin-right:4px;">
+						✉️
+						{#if data.user.unreadMessages > 0}
+							<span class="bell-badge"
+								>{data.user.unreadMessages > 99 ? '99+' : data.user.unreadMessages}</span
+							>
+						{/if}
+					</a>
 					<a href="/notifications" class="bell-link" title="消息通知">
 						🔔
 						{#if data.user.unreadCount > 0}
@@ -61,12 +87,29 @@
 							<span class="avatar">👤</span>
 						{/if}
 						{data.user.username}
+						<LevelChip points={data.user.points} />
 						<span class="points-chip">⭐ {data.user.points}</span>
 					</a>
+					<button
+						type="button"
+						class="btn btn-ghost btn-sm"
+						onclick={toggleTheme}
+						title="切换深色/浅色模式"
+					>
+						{theme === 'dark' ? '🌙' : '☀️'}
+					</button>
 					<form method="post" action="/logout">
 						<button type="submit" class="btn btn-ghost btn-sm">登出</button>
 					</form>
 				{:else}
+					<button
+						type="button"
+						class="btn btn-ghost btn-sm"
+						onclick={toggleTheme}
+						title="切换深色/浅色模式"
+					>
+						{theme === 'dark' ? '🌙' : '☀️'}
+					</button>
 					<a href="/login" class="btn btn-ghost btn-sm">登录</a>
 					<a href="/register" class="btn btn-primary btn-sm">注册</a>
 				{/if}

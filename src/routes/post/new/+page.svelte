@@ -7,6 +7,8 @@
 	let imageKeys = $state<string[]>([]);
 	let uploading = $state(false);
 	let uploadError = $state('');
+	let pollEnabled = $state(false);
+	let pollText = $state('');
 
 	async function handleFiles(event: Event) {
 		const input = event.target as HTMLInputElement;
@@ -87,6 +89,29 @@
 				maxlength="80"
 				required
 			/>
+		</div>
+
+		<div class="form-group">
+			<label class="form-check-label" for="pollEnabled">
+				<input
+					type="checkbox"
+					id="pollEnabled"
+					name="pollEnabled"
+					value="1"
+					bind:checked={pollEnabled}
+				/>
+				发起投票（吧友可选一项投票）
+			</label>
+			{#if pollEnabled}
+				<textarea
+					name="pollOptions"
+					class="form-textarea"
+					placeholder="每行一个选项，至少 2 个、最多 10 个（例：&#10;选项一&#10;选项二）"
+					style="min-height: 110px;"
+					bind:value={pollText}
+					maxlength="600"></textarea>
+				<p class="form-hint">投票帖同样可以添加图片和文字说明</p>
+			{/if}
 		</div>
 
 		<div class="form-group">

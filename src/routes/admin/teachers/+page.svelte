@@ -14,6 +14,8 @@
 	<a href="/admin" class="btn btn-ghost btn-sm">帖子管理</a>
 	<a href="/admin/users" class="btn btn-ghost btn-sm">用户管理</a>
 	<a href="/admin/teachers" class="btn btn-primary btn-sm">老师审批</a>
+	<a href="/admin/reports" class="btn btn-ghost btn-sm">举报处理</a>
+	<a href="/admin/announcements" class="btn btn-ghost btn-sm">公告管理</a>
 </div>
 
 <h1 class="page-title" style="margin-top:16px;">👨‍🏫 老师审批</h1>

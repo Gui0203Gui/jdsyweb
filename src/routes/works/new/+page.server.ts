@@ -2,6 +2,7 @@ import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { works } from '#lib/server/db/schema';
 import { awardPoints, putFile } from '#lib/server/points';
+import { checkAchievements } from '#lib/server/queries';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(302, '/login?redirect=/works/new');
@@ -49,6 +50,9 @@ export const actions: Actions = {
 
 		// 上传作品 +20 积分
 		await awardPoints(locals.db, locals.user.id, 'work', workId);
+
+		// 成就检查：首个作品
+		await checkAchievements(locals.db, locals.user.id);
 
 		redirect(303, `/works/${workId}`);
 	}

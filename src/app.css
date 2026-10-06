@@ -1042,3 +1042,508 @@ a:hover {
 .mb-16 {
 	margin-bottom: 16px;
 }
+
+/* ---------- 投票帖（A3） ---------- */
+.poll-card {
+	margin-top: 16px;
+	padding: 14px 16px;
+	background: #f8fafc;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.poll-title {
+	font-size: 15px;
+	font-weight: 700;
+	margin-bottom: 10px;
+}
+
+.poll-option-row {
+	margin-bottom: 8px;
+}
+
+.poll-option {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 8px 12px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	cursor: pointer;
+	font-size: 14px;
+	text-align: left;
+	font-family: inherit;
+	color: var(--text);
+	transition: border-color 0.15s;
+}
+
+.poll-option:hover {
+	border-color: var(--primary);
+}
+
+.poll-option:disabled {
+	cursor: default;
+	opacity: 0.85;
+}
+
+.poll-option-mine {
+	border-color: var(--primary);
+	background: #eff6ff;
+}
+
+.poll-option-label {
+	flex: 1;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.poll-option-bar-wrap {
+	width: 140px;
+	height: 8px;
+	background: #e5e7eb;
+	border-radius: 4px;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.poll-option-bar {
+	display: block;
+	height: 100%;
+	background: var(--primary);
+	border-radius: 4px;
+	transition: width 0.3s;
+}
+
+.poll-option-count {
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--text-secondary);
+	min-width: 72px;
+	text-align: right;
+}
+
+.poll-mine {
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--primary);
+	font-weight: 700;
+}
+
+/* ---------- 送花打赏（B2） ---------- */
+.gift-menu {
+	position: relative;
+	display: inline-block;
+}
+
+.gift-menu summary {
+	list-style: none;
+	cursor: pointer;
+}
+
+.gift-menu summary::-webkit-details-marker {
+	display: none;
+}
+
+.gift-dropdown {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	z-index: 50;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+	padding: 8px;
+	min-width: 150px;
+}
+
+.gift-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 6px 10px;
+	background: none;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 14px;
+	font-family: inherit;
+	color: var(--text);
+}
+
+.gift-item:hover {
+	background: #f1f3f5;
+}
+
+.gift-icon {
+	width: 22px;
+	height: 22px;
+	image-rendering: pixelated;
+}
+
+/* ---------- 举报弹窗（D1） ---------- */
+.modal-mask {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.45);
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.modal {
+	background: var(--surface);
+	border-radius: var(--radius);
+	padding: 20px;
+	width: 90%;
+	max-width: 420px;
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.modal-title {
+	font-size: 16px;
+	font-weight: 700;
+	margin-bottom: 12px;
+}
+
+/* ---------- 等级徽章（B1） ---------- */
+.level-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 1px 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 700;
+	color: #fff;
+	margin-left: 4px;
+	vertical-align: 1px;
+	white-space: nowrap;
+}
+
+.level-1 {
+	background: #9ca3af;
+}
+.level-2 {
+	background: #22c55e;
+}
+.level-3 {
+	background: #14b8a6;
+}
+.level-4 {
+	background: #f59e0b;
+}
+.level-5 {
+	background: #f97316;
+}
+.level-6 {
+	background: #ef4444;
+}
+.level-7 {
+	background: #a855f7;
+}
+.level-8 {
+	background: #eab308;
+}
+
+/* ---------- 成就墙（B3） ---------- */
+.ach-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 12px;
+}
+
+.ach-card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 14px;
+	text-align: center;
+}
+
+.ach-card.locked {
+	opacity: 0.55;
+	filter: grayscale(1);
+}
+
+.ach-icon {
+	font-size: 30px;
+	display: block;
+	margin-bottom: 6px;
+}
+
+.ach-name {
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.ach-desc {
+	font-size: 12px;
+	color: var(--text-secondary);
+	margin-top: 4px;
+}
+
+/* ---------- 关注（C1） ---------- */
+.follow-stats {
+	display: flex;
+	gap: 18px;
+	margin-top: 8px;
+}
+
+.follow-stat {
+	font-size: 14px;
+	color: var(--text-secondary);
+}
+
+.follow-stat b {
+	color: var(--text);
+	font-size: 16px;
+	margin-right: 4px;
+}
+
+/* ---------- 公告栏（D2） ---------- */
+.announcement-bar {
+	margin-bottom: 16px;
+}
+
+.announcement-item {
+	padding: 10px 14px;
+	border-left: 3px solid var(--primary);
+	background: #eff6ff;
+	border-radius: 0 var(--radius) var(--radius) 0;
+	font-size: 14px;
+}
+
+.announcement-item + .announcement-item {
+	margin-top: 8px;
+}
+
+.announcement-item .a-title {
+	font-weight: 700;
+}
+
+.announcement-item .a-content {
+	color: var(--text-secondary);
+	font-size: 13px;
+	margin-top: 2px;
+}
+
+/* ---------- 深色模式（D4） ---------- */
+[data-theme='dark'] {
+	--bg: #0f172a;
+	--surface: #1e293b;
+	--border: #334155;
+	--text: #e2e8f0;
+	--text-secondary: #94a3b8;
+	--primary: #3b82f6;
+	--primary-hover: #2563eb;
+	--danger: #ef4444;
+	--shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .brand-tag {
+	background: #334155;
+	color: #cbd5e1;
+}
+
+[data-theme='dark'] .forum-link:hover {
+	background: #334155;
+}
+
+[data-theme='dark'] .tag {
+	background: #334155;
+}
+
+[data-theme='dark'] .tag.admin {
+	background: #1e3a8a;
+	color: #93c5fd;
+}
+
+[data-theme='dark'] .poll-card {
+	background: #0f172a;
+}
+
+[data-theme='dark'] .poll-option {
+	background: #1e293b;
+}
+
+[data-theme='dark'] .poll-option-mine {
+	background: #1e3a8a;
+}
+
+[data-theme='dark'] .poll-option-bar-wrap {
+	background: #334155;
+}
+
+[data-theme='dark'] .announcement-item {
+	background: #172554;
+}
+
+[data-theme='dark'] .gift-item:hover {
+	background: #334155;
+}
+
+/* ---------- 私信页（C1） ---------- */
+.messages-layout {
+	display: grid;
+	grid-template-columns: 260px 1fr;
+	gap: 16px;
+	align-items: start;
+}
+
+.conversation-list {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 12px;
+}
+
+.conversation-item {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 10px 12px;
+	border-radius: 8px;
+	border: none;
+	background: none;
+	cursor: pointer;
+	font-family: inherit;
+	margin-bottom: 4px;
+}
+
+.conversation-item:hover {
+	background: #f1f3f5;
+}
+
+.conversation-item.active {
+	background: #eff6ff;
+	border-left: 3px solid var(--primary);
+}
+
+.conversation-name {
+	font-weight: 700;
+	font-size: 14px;
+	color: var(--text);
+}
+
+.conversation-preview {
+	display: block;
+	font-size: 12px;
+	color: var(--text-secondary);
+	margin-top: 2px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 210px;
+}
+
+.chat-window {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	display: flex;
+	flex-direction: column;
+	min-height: 420px;
+}
+
+.chat-header {
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--border);
+	font-weight: 700;
+	font-size: 14px;
+}
+
+.chat-body {
+	flex: 1;
+	padding: 16px;
+	overflow-y: auto;
+	max-height: 420px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.chat-msg {
+	display: flex;
+	flex-direction: column;
+	max-width: 70%;
+}
+
+.chat-msg.mine {
+	align-self: flex-end;
+	align-items: flex-end;
+}
+
+.chat-msg.theirs {
+	align-self: flex-start;
+	align-items: flex-start;
+}
+
+.chat-msg-content {
+	padding: 8px 12px;
+	border-radius: 12px;
+	font-size: 14px;
+	background: #f1f3f5;
+	word-break: break-word;
+}
+
+.chat-msg.mine .chat-msg-content {
+	background: var(--primary);
+	color: #fff;
+}
+
+.chat-msg-time {
+	font-size: 11px;
+	color: var(--text-secondary);
+	margin-top: 2px;
+}
+
+.chat-input-row {
+	display: flex;
+	gap: 8px;
+	padding: 12px;
+	border-top: 1px solid var(--border);
+}
+
+.chat-input-row .form-input {
+	flex: 1;
+}
+
+.chat-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1;
+	color: var(--text-secondary);
+	font-size: 14px;
+	padding: 40px;
+	text-align: center;
+}
+
+@media (max-width: 720px) {
+	.messages-layout {
+		grid-template-columns: 1fr;
+	}
+}
+
+[data-theme='dark'] .conversation-item:hover {
+	background: #334155;
+}
+
+[data-theme='dark'] .conversation-item.active {
+	background: #1e3a8a;
+}
+
+[data-theme='dark'] .chat-msg-content {
+	background: #334155;
+}
+
+[data-theme='dark'] .chat-msg.mine .chat-msg-content {
+	background: var(--primary);
+}

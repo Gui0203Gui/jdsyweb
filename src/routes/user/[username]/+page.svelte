@@ -1,8 +1,17 @@
 <script lang="ts">
 	import { badgeCls, badgeShort } from '#lib/flowers';
+	import LevelChip from '#lib/components/LevelChip.svelte';
+	import { levelForPoints } from '#lib/levels';
 	import type { PageProps } from './$types';
+	import { enhance } from '$app/forms';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+	let followingOverride = $state<boolean | null>(null);
+	let following = $derived(followingOverride ?? data.following);
+
+	function handleFollow(result: { following?: boolean }) {
+		if (result.following !== undefined) followingOverride = result.following;
+	}
 
 	function fmtDate(ts: Date | number): string {
 		const d = new Date(ts);
@@ -33,6 +42,7 @@
 		<div class="profile-info">
 			<div class="profile-name">
 				{data.profile.user.username}
+				<LevelChip points={data.profile.user.points} />
 				{#if data.profile.user.badge}<span
 						class="user-badge badge-{badgeCls(data.profile.user.badge)}"
 						style="margin-left:6px;">【{badgeShort(data.profile.user.badge)}】</span
@@ -44,14 +54,40 @@
 			<div class="profile-meta">
 				<span>📅 注册于 {fmtDate(data.profile.user.createdAt).slice(0, 10)}</span>
 				<span>⭐ 积分 {data.profile.user.points}</span>
+				<span>⭐ 等级 Lv.{levelForPoints(data.profile.user.points).level}</span>
 			</div>
 			{#if data.profile.user.bio}
 				<div class="profile-bio">{data.profile.user.bio}</div>
 			{/if}
+			<div class="follow-stats">
+				<span class="follow-stat"><b>{data.followCounts.following}</b>关注</span>
+				<span class="follow-stat"><b>{data.followCounts.followers}</b>粉丝</span>
+			</div>
 			<div class="profile-stats">
 				<div class="profile-stat"><b>{data.profile.postCount}</b><span>帖子</span></div>
 				<div class="profile-stat"><b>{data.profile.commentCount}</b><span>评论</span></div>
 				<div class="profile-stat"><b>{data.profile.workCount}</b><span>作品</span></div>
+			</div>
+			{#if form?.error}
+				<div class="form-error" style="margin-top:8px;">{form.error}</div>
+			{/if}
+			<div class="flex" style="margin-top:12px;flex-wrap:wrap;">
+				{#if data.user && !data.isMe}
+					<form method="post" action="?/follow" use:enhance>
+						<button
+							type="submit"
+							class="btn {following ? 'btn-ghost' : 'btn-primary'} btn-sm"
+							data-enhance-on={handleFollow}
+						>
+							{following ? '✅ 已关注' : '➕ 关注'}
+						</button>
+					</form>
+				{/if}
+				{#if data.user && !data.isMe}
+					<a href={`/messages?to=${data.profile.user.username}`} class="btn btn-ghost btn-sm"
+						>✉️ 发私信</a
+					>
+				{/if}
 			</div>
 		</div>
 	</div>

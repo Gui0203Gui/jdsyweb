@@ -1,6 +1,11 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getUserProfile, listPostsByAuthor, listUserFavorites } from '#lib/server/queries';
+import {
+	getUserProfile,
+	listPostsByAuthor,
+	listUserAchievements,
+	listUserFavorites
+} from '#lib/server/queries';
 import { listPointLogs } from '#lib/server/points';
 import { users } from '#lib/server/db/schema';
 import { eq } from 'drizzle-orm';
@@ -8,18 +13,20 @@ import { eq } from 'drizzle-orm';
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(302, '/login?redirect=/me');
 
-	const [profile, myPosts, favorites, pointLogs] = await Promise.all([
+	const [profile, myPosts, favorites, pointLogs, achievements] = await Promise.all([
 		getUserProfile(locals.db, locals.user.id),
 		listPostsByAuthor(locals.db, locals.user.id),
 		listUserFavorites(locals.db, locals.user.id, 30),
-		listPointLogs(locals.db, locals.user.id, 100)
+		listPointLogs(locals.db, locals.user.id, 100),
+		listUserAchievements(locals.db, locals.user.id)
 	]);
 
 	return {
 		profile: profile!, // locals.user 已存在，profile 必然非空
 		posts: myPosts,
 		favorites,
-		pointLogs
+		pointLogs,
+		achievements
 	};
 };
 
