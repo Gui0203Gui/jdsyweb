@@ -421,6 +421,31 @@ a:hover {
 	font-weight: 400;
 }
 
+/* ？！富富！？：橙色加粗 */
+.user-badge.badge-rich {
+	color: #f97316;
+	font-weight: 700;
+}
+
+/* ？！强强！？：蓝色加粗 */
+.user-badge.badge-strong {
+	color: #2563eb;
+	font-weight: 700;
+}
+
+/* 富富 / 强强 发言文字：同色加粗、无边框 */
+.badge-speech.badge-rich {
+	color: #f97316;
+	text-shadow: none;
+	font-weight: 700;
+}
+
+.badge-speech.badge-strong {
+	color: #2563eb;
+	text-shadow: none;
+	font-weight: 700;
+}
+
 /* ---------- 表单 ---------- */
 .form-group {
 	margin-bottom: 16px;

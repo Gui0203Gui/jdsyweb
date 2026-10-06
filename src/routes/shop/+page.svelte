@@ -155,6 +155,47 @@
 	</form>
 </section>
 
+<!-- 交易⑥：500 积分买橙色称号 -->
+<section class="card trade-card">
+	<div class="trade-head">
+		<div class="trade-title">🪙 购买橙色称号【？！富富！？】</div>
+		<div class="trade-sub">
+			500 积分 / 枚 · 购买后放入背包，可穿戴 / 脱下，也可赠送给其他吧友（橙色加粗）
+		</div>
+	</div>
+	<div class="trade-recipe">
+		<span class="recipe-item" style="font-size:16px;line-height:1;">
+			<span class="user-badge badge-rich">【？！富富！？】</span>
+			×{nOf('badge:rich')}
+		</span>
+	</div>
+	<form method="post" action="?/buyRich">
+		<button
+			type="submit"
+			class="btn btn-primary"
+			disabled={data.points < 500}
+			title={data.points >= 500 ? '' : '积分不足'}
+		>
+			{data.points >= 500 ? '花费 500 积分购买' : '积分不足'}
+		</button>
+	</form>
+</section>
+
+<!-- 全成就奖励：蓝色称号 -->
+<section class="card trade-card">
+	<div class="trade-head">
+		<div class="trade-title">💎 全成就奖励【？！强强！？】</div>
+		<div class="trade-sub">集齐全部 10 项成就自动发放（蓝色加粗），到「我的成就」页查看进度</div>
+	</div>
+	<div class="trade-recipe">
+		<span class="recipe-item" style="font-size:16px;line-height:1;">
+			<span class="user-badge badge-strong">【？！强强！？】</span>
+			×{nOf('badge:strong')}
+		</span>
+	</div>
+	<p class="form-hint">已集齐成就的话，下一次发帖 / 评论 / 签到时会自动发放到背包。</p>
+</section>
+
 <style>
 	.wallet {
 		display: flex;

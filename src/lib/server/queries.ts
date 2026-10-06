@@ -794,6 +794,9 @@ export async function deleteGraffiti(db: Db, graffitiId: string) {
 // ---------- 商店系统 ----------
 
 export const SHOP_FLOWER_PRICE = 25; // 商店买花价格（积分）
+export const BADGE_RICH_KEY = 'badge:rich'; // 商店 500 积分购买的橙色称号
+export const BADGE_STRONG_KEY = 'badge:strong'; // 集齐全部成就的蓝色称号
+export const SHOP_RICH_PRICE = 500; // 橙色称号价格（积分）
 export const BADGE_NATIONAL_KEY = 'badge:national'; // 合成称号（国庆快乐）
 export const BADGE_ITEM_TYPE = BADGE_NATIONAL_KEY as FlowerType; // 合成称号在背包中的道具类型
 export const BADGE_FLOWERS: FlowerType[] = [
@@ -990,6 +993,53 @@ export async function buyNameCard(db: Db, userId: string) {
 		.values({ userId, change: -NAME_CARD_PRICE, reason: 'shop', refId: 'item:namecard' });
 	await db.insert(items).values({ ownerId: userId, itemType: 'item:namecard', source: 'shop' });
 	return { ok: true, points: points - NAME_CARD_PRICE };
+}
+
+/** 商店购买橙色称号：500 积分换一枚【？！富富！？】，入背包 */
+export async function buyRichBadge(db: Db, userId: string) {
+	const user = await db
+		.select({ points: users.points })
+		.from(users)
+		.where(eq(users.id, userId))
+		.get();
+	const points = user?.points ?? 0;
+	if (points < SHOP_RICH_PRICE) {
+		return { ok: false, error: `积分不足，需要 ${SHOP_RICH_PRICE} 积分（当前 ${points}）` };
+	}
+	await db
+		.update(users)
+		.set({ points: sql`${users.points} - ${SHOP_RICH_PRICE}` })
+		.where(eq(users.id, userId));
+	await db
+		.insert(pointLogs)
+		.values({ userId, change: -SHOP_RICH_PRICE, reason: 'shop', refId: BADGE_RICH_KEY });
+	await db.insert(items).values({ ownerId: userId, itemType: BADGE_RICH_KEY, source: 'shop' });
+	return { ok: true, points: points - SHOP_RICH_PRICE };
+}
+
+/** 全成就奖励：集齐全部成就时发放蓝色称号【？！强强！？】（只发一次，未装备时自动穿戴） */
+export async function grantAllAchievementsBadge(db: Db, userId: string) {
+	const existing = await db
+		.select({ id: items.id })
+		.from(items)
+		.where(and(eq(items.ownerId, userId), eq(items.itemType, BADGE_STRONG_KEY)))
+		.limit(1);
+	if (existing.length > 0) return;
+	const user = await db
+		.select({ badge: users.badge })
+		.from(users)
+		.where(eq(users.id, userId))
+		.get();
+	const equipped = !user?.badge;
+	await db.insert(items).values({
+		ownerId: userId,
+		itemType: BADGE_STRONG_KEY,
+		source: 'achievement',
+		equipped
+	});
+	if (equipped) {
+		await db.update(users).set({ badge: BADGE_STRONG_KEY }).where(eq(users.id, userId));
+	}
 }
 
 /** 使用改名卡改名：校验唯一性 → 消耗 1 张卡 → 更新用户名 */
@@ -1287,6 +1337,10 @@ export async function checkAchievements(db: Db, userId: string): Promise<string[
 		.where(eq(userAchievements.userId, userId));
 	const ownedIds = new Set(owned.map((o) => o.achievementId));
 	const pending = all.filter((a) => !ownedIds.has(a.id));
+	// 全成就奖励：集齐全部成就 → 发放蓝色称号【？！强强！？】
+	if (all.length > 0 && ownedIds.size >= all.length) {
+		await grantAllAchievementsBadge(db, userId);
+	}
 	if (pending.length === 0) return [];
 
 	const postCount =

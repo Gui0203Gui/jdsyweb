@@ -33,6 +33,8 @@ export const FLOWER_TYPES = Object.keys(FLOWERS) as FlowerType[];
  * cls 决定全站渲染样式：
  *  - nat（国庆快乐）：红色加粗、发言红色黑框
  *  - cheng（程门立雪）：绿色细体、无边框
+ *  - rich（？！富富！？）：橙色加粗
+ *  - strong（？！强强！？）：蓝色加粗
  */
 export type BadgeInfo = {
 	key: string;
@@ -40,7 +42,7 @@ export type BadgeInfo = {
 	shortName: string;
 	tag: string;
 	icon: string;
-	cls: 'nat' | 'cheng';
+	cls: 'nat' | 'cheng' | 'rich' | 'strong';
 };
 
 export const BADGE_INFOS = {
@@ -59,6 +61,22 @@ export const BADGE_INFOS = {
 		tag: '绝版',
 		icon: '❄️',
 		cls: 'cheng'
+	},
+	'badge:rich': {
+		key: 'badge:rich',
+		name: '称号·？！富富！？',
+		shortName: '？！富富！？',
+		tag: '商店 · 500积分',
+		icon: '🪙',
+		cls: 'rich'
+	},
+	'badge:strong': {
+		key: 'badge:strong',
+		name: '称号·？！强强！？',
+		shortName: '？！强强！？',
+		tag: '集齐全部成就',
+		icon: '💎',
+		cls: 'strong'
 	}
 } as const;
 
