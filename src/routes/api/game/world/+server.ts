@@ -5,6 +5,7 @@ import {
 	collectGameResources,
 	exchangeGameFlower,
 	exchangeGameResourcesToPoints,
+	getGamePlayerInfo,
 	getGameRanking,
 	getOrCreateWorldMap,
 	listWorldPlayers,
@@ -19,16 +20,17 @@ import {
 export const GET: RequestHandler = async ({ locals }) => {
 	const world = await getOrCreateWorldMap(locals.db);
 	if (!world) return json({ error: '世界初始化失败' }, { status: 500 });
-	const [tiles, chat, resources, players, ranking] = await Promise.all([
+	const [tiles, chat, resources, players, ranking, me] = await Promise.all([
 		listGameTiles(locals.db, world.id),
 		listGameChat(locals.db, world.id, 50),
 		locals.user ? listGameResources(locals.db, locals.user.id, world.id) : null,
 		listWorldPlayers(locals.db, world.id),
-		getGameRanking(locals.db, world.id, 20)
+		getGameRanking(locals.db, world.id, 20),
+		locals.user ? getGamePlayerInfo(locals.db, world.id, locals.user.id) : null
 	]);
 	return json({
 		world: { id: world.id, name: world.name },
-		tiles: tiles.map((t) => ({ x: t.x, y: t.y, type: t.type, ownerId: t.ownerId })),
+		tiles: tiles.map((t) => ({ x: t.x, y: t.y, type: t.type, ownerId: t.ownerId, power: t.power })),
 		chat: chat.map((c) => ({
 			id: c.chat.id,
 			username: c.username,
@@ -37,7 +39,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 		})),
 		resources: locals.user ? resources : null,
 		players: players.filter((p) => p.userId !== locals.user?.id),
-		ranking
+		ranking,
+		points: me?.points ?? null,
+		armyPower: me?.armyPower ?? null
 	});
 };
 
@@ -59,15 +63,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			if (!Number.isInteger(x) || !Number.isInteger(y))
 				return json({ error: '坐标无效' }, { status: 400 });
 			const r = await placeGameTile(locals.db, wid, x, y, type, uid);
-			return r.ok ? json({ ok: true }) : json({ error: r.error }, { status: 400 });
+			return r.ok
+				? json({ ok: true, cost: r.cost, power: r.power })
+				: json({ error: r.error }, { status: 400 });
 		}
 		case 'remove': {
 			const x = Number(body?.x);
 			const y = Number(body?.y);
 			if (!Number.isInteger(x) || !Number.isInteger(y))
 				return json({ error: '坐标无效' }, { status: 400 });
-			const r = await removeGameTile(locals.db, wid, x, y);
-			return r.ok ? json({ ok: true }) : json({ error: r.error }, { status: 400 });
+			const r = await removeGameTile(locals.db, wid, x, y, uid);
+			if (!r.ok) return json({ error: r.error }, { status: 400 });
+			return json({ ok: true, removed: r.removed, battle: r.battle ?? null });
 		}
 		case 'collect': {
 			const gained = await collectGameResources(locals.db, wid, uid);

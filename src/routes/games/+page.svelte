@@ -8,20 +8,49 @@
 	const CELL = 80; // 每格放大到 80px
 
 	const BUILDS = {
-		miner: { name: '⛏️ 矿机', icon: '⛏️', color: '#8d7b5f', desc: '产出铁矿石' },
-		lumber: { name: '🌳 伐木场', icon: '🌳', color: '#7a5c33', desc: '产出木材' },
-		farm: { name: '🌾 农田', icon: '🌾', color: '#c9a227', desc: '产出小麦' },
-		flower: { name: '🌼 花田', icon: '🌼', color: '#e05f9e', desc: '产出花朵点' },
-		lantern: { name: '🏮 路灯', icon: '🏮', color: '#d97706', desc: '装饰' },
-		campfire: { name: '🔥 篝火', icon: '🔥', color: '#ea580c', desc: '装饰' }
+		miner: { name: '⛏️ 矿机', icon: '⛏️', color: '#8d7b5f', desc: '产出铁矿石', cost: 8 },
+		lumber: { name: '🌳 伐木场', icon: '🌳', color: '#7a5c33', desc: '产出木材', cost: 8 },
+		farm: { name: '🌾 农田', icon: '🌾', color: '#c9a227', desc: '产出小麦', cost: 8 },
+		flower: { name: '🌼 花田', icon: '🌼', color: '#e05f9e', desc: '产出花朵点', cost: 12 },
+		lantern: { name: '🏮 路灯', icon: '🏮', color: '#d97706', desc: '装饰', cost: 4 },
+		campfire: { name: '🔥 篝火', icon: '🔥', color: '#ea580c', desc: '装饰', cost: 4 }
 	} as const;
 	type BuildKey = keyof typeof BUILDS;
 
-	let tiles = $state<{ x: number; y: number; type: string; ownerId: string }[]>(data.tiles);
+	const ARMIES = {
+		army_infantry: {
+			name: '⚔️ 步兵营',
+			icon: '⚔️',
+			color: '#4b5563',
+			desc: '铁×15+木×15 → 10兵力',
+			cost: 15
+		},
+		army_archer: {
+			name: '🏹 弓兵营',
+			icon: '🏹',
+			color: '#2f7d4f',
+			desc: '木×20+麦×10 → 8兵力',
+			cost: 15
+		},
+		army_cavalry: {
+			name: '🐎 骑兵营',
+			icon: '🐎',
+			color: '#7c3fae',
+			desc: '铁×10+麦×20 → 12兵力',
+			cost: 20
+		}
+	} as const;
+	type ArmyKey = keyof typeof ARMIES;
+
+	let tiles = $state<{ x: number; y: number; type: string; ownerId: string; power: number }[]>(
+		data.tiles
+	);
 	let chat = $state<{ username: string; content: string; createdAt: Date }[]>(
 		data.chat.map((c) => ({ ...c, createdAt: new Date(c.createdAt) }))
 	);
 	let resources = $state(data.resources);
+	let points = $state(data.points);
+	let armyPower = $state(data.armyPower);
 	let players = $state(data.players);
 	let ranking = $state(data.ranking);
 	let selected = $state<BuildKey>('miner');
@@ -84,6 +113,19 @@
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
 			ctx.fillText(b.icon, px + CELL / 2, py + CELL / 2 + 2);
+			// 兵场兵力角标
+			if (t.power > 0) {
+				ctx.fillStyle = 'rgba(0,0,0,.72)';
+				const r = Math.floor(CELL * 0.16);
+				ctx.beginPath();
+				ctx.arc(px + CELL - r - 3, py + 3 + r, r, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.fillStyle = '#fff';
+				ctx.font = `bold ${Math.floor(CELL * 0.22)}px sans-serif`;
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.fillText(String(t.power), px + CELL - r - 3, py + 3 + r + 1);
+			}
 			// 别人建筑加边框（竞争辨识）
 			if (t.ownerId !== myId) {
 				ctx.strokeStyle = 'rgba(220,38,38,.9)';
@@ -156,10 +198,27 @@
 			return;
 		}
 		if (action === 'place') {
-			tiles = [...tiles, { x, y, type: String(type), ownerId: myId }];
+			tiles = [...tiles, { x, y, type: String(type), ownerId: myId, power: j.power ?? 0 }];
+			if (typeof j.cost === 'number') points = Math.max(0, (points ?? 0) - j.cost);
+			showTip(`建造成功：${j.cost ?? 0} 积分${j.power ? `，兵力 ${j.power}` : ''}`);
 		} else if (action === 'remove') {
 			tiles = tiles.filter((t) => !(t.x === x && t.y === y));
+			// 战斗战报
+			if (j.battle) {
+				const b = j.battle;
+				const atkLabel = `我方 ${b.atkPower} ⚔ ${b.defPower} 敌方`;
+				if (b.winner === 'atk') {
+					showTip(`⚔️ 战报：${atkLabel}，我方获胜！剩余兵力 ${b.atkRemaining}，建筑已拆除`);
+				} else if (b.winner === 'def') {
+					showTip(`💥 战报：${atkLabel}，我方全军覆没！对方剩余 ${b.defRemaining}，建筑未能拆除`);
+				} else {
+					showTip(`⚖️ 战报：${atkLabel}，双方同归于尽，建筑未能拆除`);
+				}
+			} else {
+				showTip(j.removed === false ? '拆除失败' : '已拆除');
+			}
 		}
+		await refresh();
 		draw();
 	}
 
@@ -241,6 +300,8 @@
 		if (j.resources) resources = j.resources;
 		if (j.players) players = j.players;
 		if (j.ranking) ranking = j.ranking;
+		if (typeof j.points === 'number') points = j.points;
+		if (typeof j.armyPower === 'number') armyPower = j.armyPower;
 		draw();
 	}
 
@@ -309,7 +370,7 @@
 					>
 				</div>
 				{#if tool === 'build'}
-					<h3>选择建筑</h3>
+					<h3>选择建筑（消耗积分）</h3>
 					<div class="builds">
 						{#each Object.entries(BUILDS) as [key, b] (key)}
 							<button
@@ -318,18 +379,34 @@
 							>
 								<span class="bi">{b.icon}</span>
 								<span class="bn">{b.name}</span>
-								<span class="bd">{b.desc}</span>
+								<span class="bd">{b.desc} · ⭐{b.cost}</span>
 							</button>
 						{/each}
 					</div>
+					<h3>兵场（材料合成，消耗积分）</h3>
+					<div class="builds">
+						{#each Object.entries(ARMIES) as [key, a] (key)}
+							<button
+								class="build {selected === key ? 'on' : ''}"
+								onclick={() => (selected = key as BuildKey)}
+							>
+								<span class="bi">{a.icon}</span>
+								<span class="bn">{a.name}</span>
+								<span class="bd">{a.desc} · ⭐{a.cost}</span>
+							</button>
+						{/each}
+					</div>
+					<p class="hint">我的积分：⭐{points ?? 0} · 总兵力：⚔️ {armyPower ?? 0}</p>
 				{:else}
-					<p class="hint">点击你想拆除的建筑——公共地图上任何人的建筑都可以拆除（竞争）</p>
+					<p class="hint">拆除他人建筑需要兵场兵力（⚔️ 我方 {armyPower ?? 0}）。拆自己建筑免费。</p>
 				{/if}
 			</div>
 
 			<div class="sec">
 				<h3>我的资源</h3>
 				<div class="res">
+					<span>⭐ 积分 {points ?? 0}</span>
+					<span>⚔️ 兵力 {armyPower ?? 0}</span>
 					<span>⛏️ 铁 {resources?.iron ?? 0}</span>
 					<span>🪵 木 {resources?.wood ?? 0}</span>
 					<span>🌾 麦 {resources?.wheat ?? 0}</span>

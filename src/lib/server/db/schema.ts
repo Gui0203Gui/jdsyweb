@@ -556,6 +556,7 @@ export const gameTiles = sqliteTable(
 		ownerId: text('owner_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
+		power: integer('power').notNull().default(0),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.notNull()
 			.$defaultFn(() => new Date())

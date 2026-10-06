@@ -1,4 +1,4 @@
-import { desc, eq, sql, count, and, like, or, inArray, type SQL } from 'drizzle-orm';
+import { desc, eq, sql, count, and, like, or, gt, inArray, type SQL } from 'drizzle-orm';
 import type { Db } from './auth';
 import {
 	achievements,
@@ -1545,7 +1545,7 @@ export const GAME_BUILDINGS = {
 		resource: 'iron',
 		icon: '⛏',
 		desc: '产出铁矿石',
-		cost: 0
+		cost: 8
 	},
 	lumber: {
 		name: '🪚 伐木场',
@@ -1553,7 +1553,7 @@ export const GAME_BUILDINGS = {
 		resource: 'wood',
 		icon: '🪚',
 		desc: '产出木材',
-		cost: 0
+		cost: 8
 	},
 	farm: {
 		name: '🌾 农田',
@@ -1561,7 +1561,7 @@ export const GAME_BUILDINGS = {
 		resource: 'wheat',
 		icon: '🌾',
 		desc: '产出小麦',
-		cost: 0
+		cost: 8
 	},
 	flower: {
 		name: '🌸 花田',
@@ -1569,7 +1569,7 @@ export const GAME_BUILDINGS = {
 		resource: 'flower',
 		icon: '🌸',
 		desc: '产出花朵点',
-		cost: 0
+		cost: 12
 	},
 	lantern: {
 		name: '🏯 路灯',
@@ -1577,18 +1577,50 @@ export const GAME_BUILDINGS = {
 		resource: null,
 		icon: '🏯',
 		desc: '装饰物，无产出',
-		cost: 0
+		cost: 4
 	},
 	campfire: {
-		name: '🔥 炯火',
+		name: '🔥 篝火',
 		color: '#ea580c',
 		resource: null,
 		icon: '🔥',
 		desc: '装饰物，无产出',
-		cost: 0
+		cost: 4
 	}
 } as const;
 export type GameBuildingType = keyof typeof GAME_BUILDINGS;
+
+// 兵场：材料配方合成兵种（不能补兵，兵力打光后只能拆除重建）
+export const GAME_ARMIES = {
+	army_infantry: {
+		name: '⚔️ 步兵营',
+		icon: '⚔️',
+		color: '#4b5563',
+		desc: '铁×15 + 木×15 → 10 兵力',
+		recipe: { iron: 15, wood: 15 } as Record<string, number>,
+		cost: 15,
+		power: 10
+	},
+	army_archer: {
+		name: '🏹 弓兵营',
+		icon: '🏹',
+		color: '#2f7d4f',
+		desc: '木×20 + 麦×10 → 8 兵力',
+		recipe: { wood: 20, wheat: 10 } as Record<string, number>,
+		cost: 15,
+		power: 8
+	},
+	army_cavalry: {
+		name: '🐎 骑兵营',
+		icon: '🐎',
+		color: '#7c3fae',
+		desc: '铁×10 + 麦×20 → 12 兵力',
+		recipe: { iron: 10, wheat: 20 } as Record<string, number>,
+		cost: 20,
+		power: 12
+	}
+} as const;
+export type GameArmyType = keyof typeof GAME_ARMIES;
 
 // 收集产出：每类产出建筑一次收集产出数量
 export const GAME_COLLECT_RATES: Record<string, number> = {
@@ -1659,6 +1691,21 @@ export async function listGameTiles(db: Db, mapId: string) {
 	return db.select().from(gameTiles).where(eq(gameTiles.mapId, mapId));
 }
 
+async function getGameResourceAmount(db: Db, userId: string, mapId: string, rtype: string) {
+	const rows = await db
+		.select({ amount: gameResources.amount })
+		.from(gameResources)
+		.where(
+			and(
+				eq(gameResources.userId, userId),
+				eq(gameResources.mapId, mapId),
+				eq(gameResources.resourceType, rtype)
+			)
+		)
+		.limit(1);
+	return rows[0]?.amount ?? 0;
+}
+
 export async function placeGameTile(
 	db: Db,
 	mapId: string,
@@ -1666,44 +1713,220 @@ export async function placeGameTile(
 	y: number,
 	type: string,
 	ownerId: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; cost?: number; power?: number }> {
 	if (x < 0 || y < 0 || x >= GAME_MAP_SIZE || y >= GAME_MAP_SIZE) {
 		return { ok: false, error: '坐标超出地图范围' };
 	}
-	if (!(type in GAME_BUILDINGS)) return { ok: false, error: '无效建筑类型' };
+	const isArmy = type in GAME_ARMIES;
+	if (!(type in GAME_BUILDINGS) && !isArmy) return { ok: false, error: '无效建筑类型' };
 	const exist = await db
 		.select({ id: gameTiles.id })
 		.from(gameTiles)
 		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.x, x), eq(gameTiles.y, y)))
 		.limit(1);
 	if (exist.length > 0) return { ok: false, error: '该格子已有建筑' };
+	// 积分成本
+	const cost = isArmy
+		? (GAME_ARMIES[type as GameArmyType] as { cost: number }).cost
+		: GAME_BUILDINGS[type as GameBuildingType].cost;
+	const user = await db
+		.select({ points: users.points })
+		.from(users)
+		.where(eq(users.id, ownerId))
+		.get();
+	if ((user?.points ?? 0) < cost) {
+		return { ok: false, error: `积分不足：建造需要 ${cost} 积分（当前 ${user?.points ?? 0}）` };
+	}
+	// 兵场：校验并扣除材料
+	let power = 0;
+	if (isArmy) {
+		const army = GAME_ARMIES[type as GameArmyType] as {
+			recipe: Record<string, number>;
+			power: number;
+		};
+		for (const [rt, need] of Object.entries(army.recipe)) {
+			const have = await getGameResourceAmount(db, ownerId, mapId, rt);
+			if (have < need) {
+				return { ok: false, error: `材料不足：需要 ${rt} ×${need}（当前 ${have}）` };
+			}
+		}
+		for (const [rt, need] of Object.entries(army.recipe)) {
+			await db
+				.update(gameResources)
+				.set({ amount: sql`${gameResources.amount} - ${need}` })
+				.where(
+					and(
+						eq(gameResources.userId, ownerId),
+						eq(gameResources.mapId, mapId),
+						eq(gameResources.resourceType, rt)
+					)
+				);
+		}
+		power = army.power;
+	}
+	// 扣积分
+	await db
+		.update(users)
+		.set({ points: sql`${users.points} - ${cost}` })
+		.where(eq(users.id, ownerId));
+	await db
+		.insert(pointLogs)
+		.values({ userId: ownerId, change: -cost, reason: 'game', refId: `build:${type}` });
 	await db.insert(gameTiles).values({
 		mapId,
 		x,
 		y,
 		type,
 		ownerId,
+		power,
 		createdAt: new Date()
 	});
 	await touchGameMap(db, mapId);
-	return { ok: true };
+	return { ok: true, cost, power };
+}
+
+/** 玩家游戏信息：积分 + 总兵力 */
+export async function getGamePlayerInfo(db: Db, mapId: string, userId: string) {
+	const [armyPower, u] = await Promise.all([
+		getGameArmyPower(db, mapId, userId),
+		db.select({ points: users.points }).from(users).where(eq(users.id, userId)).get()
+	]);
+	return { points: u?.points ?? 0, armyPower };
+}
+
+/** 玩家在地图上的总兵力 */
+export async function getGameArmyPower(db: Db, mapId: string, userId: string) {
+	const rows = await db
+		.select({ power: gameTiles.power })
+		.from(gameTiles)
+		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.ownerId, userId)));
+	return rows.reduce((s, r) => s + r.power, 0);
+}
+
+/** 清空某玩家全部兵场兵力（全军覆没） */
+async function clearArmies(db: Db, mapId: string, userId: string) {
+	await db
+		.update(gameTiles)
+		.set({ power: 0 })
+		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.ownerId, userId), gt(gameTiles.power, 0)));
+}
+
+/** 剩余兵力重新分配：按当前兵力从高到低依次填满兵场（上限=该兵种标准兵力） */
+async function allocateArmyPower(db: Db, mapId: string, userId: string, remaining: number) {
+	const armies = await db
+		.select({ id: gameTiles.id, type: gameTiles.type, power: gameTiles.power })
+		.from(gameTiles)
+		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.ownerId, userId)))
+		.orderBy(desc(gameTiles.power));
+	for (const a of armies) {
+		if (remaining <= 0) break;
+		const army = GAME_ARMIES[a.type as GameArmyType];
+		if (!army) continue;
+		const space = army.power - a.power;
+		if (space <= 0) continue;
+		const add = Math.min(space, remaining);
+		await db
+			.update(gameTiles)
+			.set({ power: a.power + add })
+			.where(eq(gameTiles.id, a.id));
+		remaining -= add;
+	}
 }
 
 export async function removeGameTile(
 	db: Db,
 	mapId: string,
 	x: number,
-	y: number
-): Promise<{ ok: boolean; error?: string }> {
+	y: number,
+	attackerId: string
+): Promise<{
+	ok: boolean;
+	error?: string;
+	removed?: boolean;
+	battle?: {
+		atkPower: number;
+		defPower: number;
+		winner: 'atk' | 'def' | 'tie';
+		atkRemaining: number;
+		defRemaining: number;
+	};
+}> {
 	const rows = await db
-		.select({ id: gameTiles.id })
+		.select({ id: gameTiles.id, ownerId: gameTiles.ownerId })
 		.from(gameTiles)
 		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.x, x), eq(gameTiles.y, y)))
 		.limit(1);
 	if (rows.length === 0) return { ok: false, error: '该处无建筑' };
-	await db.delete(gameTiles).where(eq(gameTiles.id, rows[0].id));
+	const tile = rows[0];
+	// 拆自己的建筑：免费、立即
+	if (tile.ownerId === attackerId) {
+		await db.delete(gameTiles).where(eq(gameTiles.id, tile.id));
+		await touchGameMap(db, mapId);
+		return { ok: true, removed: true };
+	}
+	// 拆别人的建筑：必须有兵力（兵场）
+	const atkPower = await getGameArmyPower(db, mapId, attackerId);
+	if (atkPower <= 0) {
+		return { ok: false, error: '你没有任何兵力，无法拆除他人建筑（先建造兵场）' };
+	}
+	const defPower = await getGameArmyPower(db, mapId, tile.ownerId);
+	if (defPower <= 0) {
+		// 对方无兵场：直接拆除，攻击方兵力不消耗
+		await db.delete(gameTiles).where(eq(gameTiles.id, tile.id));
+		await touchGameMap(db, mapId);
+		return {
+			ok: true,
+			removed: true,
+			battle: { atkPower, defPower: 0, winner: 'atk', atkRemaining: atkPower, defRemaining: 0 }
+		};
+	}
+	// 交战：总兵力对决
+	if (atkPower > defPower) {
+		// 攻击方胜：防御方全灭；攻击方剩余 = 攻 - 防（重新分配）；建筑拆除
+		await clearArmies(db, mapId, tile.ownerId);
+		await clearArmies(db, mapId, attackerId);
+		await allocateArmyPower(db, mapId, attackerId, atkPower - defPower);
+		await db.delete(gameTiles).where(eq(gameTiles.id, tile.id));
+		await touchGameMap(db, mapId);
+		return {
+			ok: true,
+			removed: true,
+			battle: {
+				atkPower,
+				defPower,
+				winner: 'atk',
+				atkRemaining: atkPower - defPower,
+				defRemaining: 0
+			}
+		};
+	}
+	if (atkPower < defPower) {
+		// 防御方胜：攻击方全灭；防御方剩余 = 防 - 攻；建筑保留
+		await clearArmies(db, mapId, attackerId);
+		await clearArmies(db, mapId, tile.ownerId);
+		await allocateArmyPower(db, mapId, tile.ownerId, defPower - atkPower);
+		await touchGameMap(db, mapId);
+		return {
+			ok: true,
+			removed: false,
+			battle: {
+				atkPower,
+				defPower,
+				winner: 'def',
+				atkRemaining: 0,
+				defRemaining: defPower - atkPower
+			}
+		};
+	}
+	// 平局：双方全灭，建筑保留
+	await clearArmies(db, mapId, attackerId);
+	await clearArmies(db, mapId, tile.ownerId);
 	await touchGameMap(db, mapId);
-	return { ok: true };
+	return {
+		ok: true,
+		removed: false,
+		battle: { atkPower, defPower, winner: 'tie', atkRemaining: 0, defRemaining: 0 }
+	};
 }
 
 export async function listGameResources(db: Db, userId: string, mapId: string) {
