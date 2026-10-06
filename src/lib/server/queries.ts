@@ -940,6 +940,12 @@ export async function giftBadgeItem(
 	return { ok: true };
 }
 
+/** 管理员永久注销用户：删除账号行，关联数据由外键级联清除 */
+export async function deleteUser(db: Db, userId: string) {
+	await db.delete(users).where(eq(users.id, userId));
+	return { ok: true };
+}
+
 /** 积分买花：25 积分换一朵指定花 */
 export async function buyFlower(db: Db, userId: string, itemType: FlowerType) {
 	const user = await db

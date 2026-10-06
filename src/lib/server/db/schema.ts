@@ -321,11 +321,15 @@ export const items = sqliteTable(
 				'flower:dandelion',
 				'badge:national',
 				'badge:chengmen',
+				'badge:chengmen',
+				'badge:rich',
+				'badge:chengmen',
+				'badge:strong',
 				'item:namecard'
 			]
 		}).notNull(), // 道具类型：三种绝版花 / 称号【国庆快乐】/ 称号【程门立雪】/ 改名卡
 		source: text('source', {
-			enum: ['festival-signin', 'gift', 'shop', 'craft', 'admin', 'game']
+			enum: ['festival-signin', 'gift', 'shop', 'craft', 'admin', 'game', 'achievement']
 		}).notNull(), // 来源：国庆签到 / 好友赠送 / 商店购买 / 商店合成 / 管理员发放
 		equipped: integer('equipped', { mode: 'boolean' }).notNull().default(false), // 是否装备中（仅称号道具使用）
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })

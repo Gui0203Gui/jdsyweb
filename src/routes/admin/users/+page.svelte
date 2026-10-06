@@ -99,6 +99,21 @@
 									<button type="submit" class="mini-btn">设为管理员</button>
 								</form>
 							{/if}
+							{#if data.currentUserId !== u.id}
+								<form method="post" action="?/deleteUser" use:enhance>
+									<input type="hidden" name="id" value={u.id} />
+									<button
+										type="submit"
+										class="mini-btn danger"
+										onclick={() =>
+											confirm(
+												'永久注销该用户？其所有帖子、评论、背包道具、积分等数据将被彻底删除，无法恢复！'
+											)}
+									>
+										注销
+									</button>
+								</form>
+							{/if}
 						</div>
 					</td>
 				</tr>

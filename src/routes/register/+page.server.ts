@@ -2,7 +2,7 @@ import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createSession, hashPassword, SESSION_COOKIE } from '#lib/server/auth';
 import { users } from '#lib/server/db/schema';
-import { count, eq } from 'drizzle-orm';
+import { count, eq, like, or } from 'drizzle-orm';
 
 const MAX_ACCOUNTS_PER_IP = 3; // 同一 IP 最多注册的账号数
 
@@ -13,6 +13,19 @@ function clientIp(request: Request): string {
 	const xff = request.headers.get('x-forwarded-for');
 	if (xff) return xff.split(',')[0].trim().slice(0, 45);
 	return '';
+}
+
+/**
+ * 归一化为"计数键"：IPv6 取 /64 前缀（前 4 组）。
+ * 家用宽带/手机网络的 IPv6 隐私扩展会让每次连接的地址都不同，
+ * 若按完整地址统计，同一人换个地址就能绕过限制，故必须按前缀计数。
+ */
+function ipCountKey(raw: string): string {
+	const ip = (raw ?? '').trim();
+	if (!ip) return '';
+	if (ip.startsWith('::ffff:')) return ip.slice(7).split(':')[0]; // IPv4-mapped
+	if (!ip.includes(':')) return ip.split(':')[0]; // 纯 IPv4
+	return ip.split(':').slice(0, 4).join(':'); // IPv6 /64 前缀
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -49,10 +62,16 @@ export const actions: Actions = {
 			return fail(400, { error: '该用户名已被注册' });
 		}
 
-		// IP 限制：同一 IP 最多注册 3 个账号
+		// IP 限制：同一 IP（IPv6 按 /64 前缀）最多注册 3 个账号
 		const ip = clientIp(request);
-		if (ip) {
-			const row = await locals.db.select({ n: count() }).from(users).where(eq(users.ip, ip));
+		const key = ipCountKey(ip);
+		if (key) {
+			const row = await locals.db
+				.select({ n: count() })
+				.from(users)
+				.where(
+					key.includes(':') ? or(eq(users.ip, key), like(users.ip, key + ':%')) : eq(users.ip, key)
+				);
 			if ((row[0]?.n ?? 0) >= MAX_ACCOUNTS_PER_IP) {
 				return fail(400, {
 					error: `同一 IP 最多注册 ${MAX_ACCOUNTS_PER_IP} 个账号，该网络环境已无法继续注册`
