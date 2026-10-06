@@ -1,18 +1,26 @@
 import { desc, eq, sql, count, and, like, or, inArray, type SQL } from 'drizzle-orm';
 import type { Db } from './auth';
 import {
+	achievements,
+	announcements,
 	comments,
 	favorites,
 	festivalSignIns,
+	follows,
 	forums,
 	graffitis,
 	items,
 	likes,
+	messages,
 	notifications,
 	pointLogs,
+	pollVotes,
 	posts,
+	reports,
+	signIns,
 	teacherLikes,
 	teachers,
+	userAchievements,
 	users,
 	works
 } from './db/schema';
@@ -363,7 +371,7 @@ export async function createNotification(
 	input: {
 		userId: string;
 		actorId?: string;
-		type: 'reply' | 'like' | 'favorite' | 'system';
+		type: 'reply' | 'like' | 'favorite' | 'system' | 'mention' | 'gift' | 'follow';
 		content: string;
 		refId?: string;
 	}
@@ -1001,4 +1009,522 @@ export async function changeUsername(db: Db, userId: string, newUsername: string
 	await db.delete(items).where(eq(items.id, card.id));
 	await db.update(users).set({ username: newUsername }).where(eq(users.id, userId));
 	return { ok: true };
+}
+
+// ---------- 投票帖（A3） ----------
+
+export type PollResult = {
+	options: { index: number; label: string; votes: number }[];
+	total: number;
+	myChoice: number | null; // 我投的选项下标；未投为 null
+};
+
+/** 帖子投票统计 + 我的选择（一次查全部） */
+export async function getPollResult(
+	db: Db,
+	postId: string,
+	userId: string | null
+): Promise<PollResult | null> {
+	const post = await db
+		.select({ pollOptions: posts.pollOptions })
+		.from(posts)
+		.where(eq(posts.id, postId))
+		.get();
+	if (!post?.pollOptions) return null;
+	let options: string[];
+	try {
+		options = JSON.parse(post.pollOptions);
+	} catch {
+		options = [];
+	}
+	if (!Array.isArray(options) || options.length === 0) return null;
+
+	const votes = await db
+		.select({ optionId: pollVotes.optionId, n: count() })
+		.from(pollVotes)
+		.where(eq(pollVotes.postId, postId))
+		.groupBy(pollVotes.optionId);
+
+	const counts: Record<string, number> = {};
+	let total = 0;
+	for (const v of votes) {
+		counts[v.optionId] = Number(v.n ?? 0);
+		total += Number(v.n ?? 0);
+	}
+
+	let myChoice: number | null = null;
+	if (userId) {
+		const mine = await db
+			.select({ optionId: pollVotes.optionId })
+			.from(pollVotes)
+			.where(and(eq(pollVotes.postId, postId), eq(pollVotes.userId, userId)))
+			.get();
+		if (mine) myChoice = Number(mine.optionId);
+	}
+
+	return {
+		options: options.map((label, i) => ({ index: i, label, votes: counts[String(i)] ?? 0 })),
+		total,
+		myChoice
+	};
+}
+
+/** 投票：每帖每用户一票（可改票）；返回 { ok, error?, choice? } */
+export async function castPollVote(db: Db, postId: string, userId: string, optionIndex: number) {
+	const post = await db
+		.select({ pollOptions: posts.pollOptions })
+		.from(posts)
+		.where(eq(posts.id, postId))
+		.get();
+	if (!post?.pollOptions) return { ok: false, error: '该帖不是投票帖' };
+	let options: string[];
+	try {
+		options = JSON.parse(post.pollOptions);
+	} catch {
+		options = [];
+	}
+	if (!Array.isArray(options) || optionIndex < 0 || optionIndex >= options.length) {
+		return { ok: false, error: '选项无效' };
+	}
+	const existing = await db
+		.select({ id: pollVotes.id })
+		.from(pollVotes)
+		.where(and(eq(pollVotes.postId, postId), eq(pollVotes.userId, userId)))
+		.get();
+	if (existing) {
+		await db
+			.update(pollVotes)
+			.set({ optionId: String(optionIndex) })
+			.where(eq(pollVotes.id, existing.id));
+	} else {
+		await db.insert(pollVotes).values({ postId, userId, optionId: String(optionIndex) });
+	}
+	return { ok: true, choice: optionIndex };
+}
+
+// ---------- 关注（C1） ----------
+
+export async function isFollowing(db: Db, followerId: string, followingId: string) {
+	const row = await db
+		.select({ id: follows.id })
+		.from(follows)
+		.where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+		.get();
+	return Boolean(row);
+}
+
+export async function followUser(db: Db, followerId: string, followingId: string) {
+	if (followerId === followingId) return { ok: false, error: '不能关注自己' };
+	const row = await db
+		.select({ id: follows.id })
+		.from(follows)
+		.where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+		.get();
+	if (row) return { ok: false, error: '已经关注了这位吧友' };
+	await db.insert(follows).values({ followerId, followingId });
+	return { ok: true };
+}
+
+export async function unfollowUser(db: Db, followerId: string, followingId: string) {
+	const row = await db
+		.select({ id: follows.id })
+		.from(follows)
+		.where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+		.get();
+	if (!row) return { ok: false, error: '还没有关注这位吧友' };
+	await db.delete(follows).where(eq(follows.id, row.id));
+	return { ok: true };
+}
+
+export async function countFollows(db: Db, userId: string) {
+	const following = await db
+		.select({ n: count() })
+		.from(follows)
+		.where(eq(follows.followerId, userId));
+	const followers = await db
+		.select({ n: count() })
+		.from(follows)
+		.where(eq(follows.followingId, userId));
+	return { following: following[0]?.n ?? 0, followers: followers[0]?.n ?? 0 };
+}
+
+/** 我关注的用户列表 */
+export async function listFollowing(db: Db, userId: string, limit = 100) {
+	const rows = await db
+		.select({ user: users })
+		.from(follows)
+		.innerJoin(users, eq(follows.followingId, users.id))
+		.where(eq(follows.followerId, userId))
+		.orderBy(desc(follows.createdAt))
+		.limit(limit);
+	return rows.map((r) => r.user);
+}
+
+/** 关注我的人列表 */
+export async function listFollowers(db: Db, userId: string, limit = 100) {
+	const rows = await db
+		.select({ user: users })
+		.from(follows)
+		.innerJoin(users, eq(follows.followerId, users.id))
+		.where(eq(follows.followingId, userId))
+		.orderBy(desc(follows.createdAt))
+		.limit(limit);
+	return rows.map((r) => r.user);
+}
+
+// ---------- 私信（C1） ----------
+
+export type Conversation = {
+	other: typeof users.$inferSelect;
+	lastMessage: typeof messages.$inferSelect | null;
+	unread: number;
+};
+
+export async function sendMessage(db: Db, senderId: string, receiverId: string, content: string) {
+	if (senderId === receiverId) return { ok: false, error: '不能给自己发私信' };
+	if (!content.trim()) return { ok: false, error: '私信内容不能为空' };
+	if (content.length > 2000) return { ok: false, error: '私信过长（最多 2000 字）' };
+	await db.insert(messages).values({ senderId, receiverId, content });
+	return { ok: true };
+}
+
+/** 会话列表：与每个私聊对象的最近一条消息 + 未读数 */
+export async function listConversations(db: Db, userId: string): Promise<Conversation[]> {
+	const sent = await db
+		.selectDistinct({ peerId: messages.receiverId })
+		.from(messages)
+		.where(eq(messages.senderId, userId));
+	const received = await db
+		.selectDistinct({ peerId: messages.senderId })
+		.from(messages)
+		.where(eq(messages.receiverId, userId));
+	const peerIds = new Set<string>();
+	for (const r of sent) if (r.peerId) peerIds.add(r.peerId);
+	for (const r of received) if (r.peerId) peerIds.add(r.peerId);
+
+	const out: Conversation[] = [];
+	for (const pid of peerIds) {
+		const other = await db.select().from(users).where(eq(users.id, pid)).get();
+		if (!other) continue;
+		const last = await db
+			.select()
+			.from(messages)
+			.where(
+				or(
+					and(eq(messages.senderId, userId), eq(messages.receiverId, pid)),
+					and(eq(messages.senderId, pid), eq(messages.receiverId, userId))
+				)
+			)
+			.orderBy(desc(messages.createdAt))
+			.limit(1)
+			.get();
+		const unreadRow = await db
+			.select({ n: count() })
+			.from(messages)
+			.where(
+				and(eq(messages.receiverId, userId), eq(messages.senderId, pid), eq(messages.isRead, false))
+			);
+		out.push({ other, lastMessage: last ?? null, unread: unreadRow[0]?.n ?? 0 });
+	}
+	out.sort((a, b) => {
+		const at = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+		const bt = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+		return bt - at;
+	});
+	return out;
+}
+
+/** 两人之间的全部消息（按时间正序），并将发给我的标记已读 */
+export async function listMessagesBetween(db: Db, userId: string, peerId: string) {
+	const rows = await db
+		.select()
+		.from(messages)
+		.where(
+			or(
+				and(eq(messages.senderId, userId), eq(messages.receiverId, peerId)),
+				and(eq(messages.senderId, peerId), eq(messages.receiverId, userId))
+			)
+		)
+		.orderBy(messages.createdAt);
+	await db
+		.update(messages)
+		.set({ isRead: true })
+		.where(
+			and(
+				eq(messages.receiverId, userId),
+				eq(messages.senderId, peerId),
+				eq(messages.isRead, false)
+			)
+		);
+	return rows;
+}
+
+export async function countUnreadMessages(db: Db, userId: string) {
+	const result = await db
+		.select({ n: count() })
+		.from(messages)
+		.where(and(eq(messages.receiverId, userId), eq(messages.isRead, false)));
+	return result[0]?.n ?? 0;
+}
+
+// ---------- 成就（B3） ----------
+
+/** 成就条件检查并发放：对指定用户扫描所有未获得的成就，满足即发放。返回新获得成就 key 列表 */
+export async function checkAchievements(db: Db, userId: string): Promise<string[]> {
+	const user = await db.select().from(users).where(eq(users.id, userId)).get();
+	if (!user) return [];
+
+	const all = await db.select().from(achievements);
+	const owned = await db
+		.select({ achievementId: userAchievements.achievementId })
+		.from(userAchievements)
+		.where(eq(userAchievements.userId, userId));
+	const ownedIds = new Set(owned.map((o) => o.achievementId));
+	const pending = all.filter((a) => !ownedIds.has(a.id));
+	if (pending.length === 0) return [];
+
+	const postCount =
+		(
+			await db
+				.select({ n: count() })
+				.from(posts)
+				.where(and(eq(posts.authorId, userId), eq(posts.isDeleted, false)))
+		)[0]?.n ?? 0;
+	const commentCount =
+		(await db.select({ n: count() }).from(comments).where(eq(comments.authorId, userId)))[0]?.n ??
+		0;
+	const signinCount =
+		(await db.select({ n: count() }).from(signIns).where(eq(signIns.userId, userId)))[0]?.n ?? 0;
+	const receivedLikes =
+		(
+			await db
+				.select({ n: count() })
+				.from(likes)
+				.innerJoin(posts, and(eq(likes.targetType, 'post'), eq(likes.targetId, posts.id)))
+				.where(eq(posts.authorId, userId))
+		)[0]?.n ?? 0;
+	const workCount =
+		(await db.select({ n: count() }).from(works).where(eq(works.authorId, userId)))[0]?.n ?? 0;
+	const itemRows = await db
+		.select({ itemType: items.itemType })
+		.from(items)
+		.where(eq(items.ownerId, userId));
+	const hasBadge = itemRows.some((r) => r.itemType.startsWith('badge:'));
+	const flowerTypes = new Set<string>(
+		itemRows.map((r) => r.itemType).filter((t) => t.startsWith('flower:'))
+	);
+	const hasAllFlowers = ['flower:poppy', 'flower:cornflower', 'flower:dandelion'].every((t) =>
+		flowerTypes.has(t)
+	);
+	const followCount =
+		(await db.select({ n: count() }).from(follows).where(eq(follows.followerId, userId)))[0]?.n ??
+		0;
+	const receivedMessages =
+		(await db.select({ n: count() }).from(messages).where(eq(messages.receiverId, userId)))[0]?.n ??
+		0;
+
+	const gained: string[] = [];
+	for (const a of pending) {
+		let hit = false;
+		switch (a.key) {
+			case 'first-post':
+				hit = postCount >= 1;
+				break;
+			case 'first-comment':
+				hit = commentCount >= 1;
+				break;
+			case 'signin-7':
+				hit = signinCount >= 7;
+				break;
+			case 'like-100':
+				hit = receivedLikes >= 100;
+				break;
+			case 'work-first':
+				hit = workCount >= 1;
+				break;
+			case 'badge-owner':
+				hit = hasBadge;
+				break;
+			case 'flower-collector':
+				hit = hasAllFlowers;
+				break;
+			case 'point-500':
+				hit = user.points >= 500;
+				break;
+			case 'follow-10':
+				hit = followCount >= 10;
+				break;
+			case 'message-first':
+				hit = receivedMessages >= 1;
+				break;
+		}
+		if (hit) {
+			await db.insert(userAchievements).values({ userId, achievementId: a.id });
+			gained.push(a.key);
+		}
+	}
+	return gained;
+}
+
+/** 用户已获得的成就（含展示信息） */
+export async function listUserAchievements(db: Db, userId: string) {
+	const rows = await db
+		.select({ ua: userAchievements, ach: achievements })
+		.from(userAchievements)
+		.innerJoin(achievements, eq(userAchievements.achievementId, achievements.id))
+		.where(eq(userAchievements.userId, userId))
+		.orderBy(desc(userAchievements.createdAt));
+	return rows.map((r) => r.ach);
+}
+
+// ---------- 举报（D1） ----------
+
+export async function createReport(
+	db: Db,
+	input: { reporterId: string; targetType: 'post' | 'comment'; targetId: string; reason: string }
+) {
+	await db.insert(reports).values({
+		reporterId: input.reporterId,
+		targetType: input.targetType,
+		targetId: input.targetId,
+		reason: input.reason
+	});
+	return { ok: true };
+}
+
+/** 管理后台：待处理举报列表（含目标内容摘要） */
+export async function listPendingReports(db: Db, limit = 100) {
+	const rows = await db
+		.select({ report: reports, reporter: users })
+		.from(reports)
+		.innerJoin(users, eq(reports.reporterId, users.id))
+		.where(eq(reports.status, 'pending'))
+		.orderBy(reports.createdAt)
+		.limit(limit);
+
+	const out: {
+		report: typeof reports.$inferSelect;
+		reporter: typeof users.$inferSelect;
+		target: { type: string; title: string; content: string; authorName: string } | null;
+	}[] = [];
+	for (const r of rows) {
+		let target: (typeof out)[number]['target'] = null;
+		if (r.report.targetType === 'post') {
+			const p = await db
+				.select({ post: posts, author: users })
+				.from(posts)
+				.innerJoin(users, eq(posts.authorId, users.id))
+				.where(eq(posts.id, r.report.targetId))
+				.get();
+			if (p) {
+				target = {
+					type: '帖子',
+					title: p.post.title,
+					content: p.post.content,
+					authorName: p.author.username
+				};
+			}
+		} else {
+			const c = await db
+				.select({ comment: comments, author: users })
+				.from(comments)
+				.innerJoin(users, eq(comments.authorId, users.id))
+				.where(eq(comments.id, r.report.targetId))
+				.get();
+			if (c) {
+				target = {
+					type: '评论',
+					title: '',
+					content: c.comment.content,
+					authorName: c.author.username
+				};
+			}
+		}
+		out.push({ report: r.report, reporter: r.reporter, target });
+	}
+	return out;
+}
+
+export async function setReportStatus(db: Db, reportId: string, status: 'resolved' | 'dismissed') {
+	await db.update(reports).set({ status }).where(eq(reports.id, reportId));
+}
+
+// ---------- 公告（D2） ----------
+
+export async function listActiveAnnouncements(db: Db, limit = 5) {
+	return db
+		.select({ announcement: announcements, author: users })
+		.from(announcements)
+		.innerJoin(users, eq(announcements.createdBy, users.id))
+		.where(eq(announcements.isActive, true))
+		.orderBy(desc(announcements.createdAt))
+		.limit(limit);
+}
+
+export async function listAllAnnouncements(db: Db, limit = 100) {
+	return db
+		.select({ announcement: announcements, author: users })
+		.from(announcements)
+		.innerJoin(users, eq(announcements.createdBy, users.id))
+		.orderBy(desc(announcements.createdAt))
+		.limit(limit);
+}
+
+export async function createAnnouncement(
+	db: Db,
+	title: string,
+	content: string,
+	createdBy: string
+) {
+	await db.insert(announcements).values({ title, content, createdBy });
+	return { ok: true };
+}
+
+export async function setAnnouncementActive(db: Db, announcementId: string, active: boolean) {
+	await db
+		.update(announcements)
+		.set({ isActive: active })
+		.where(eq(announcements.id, announcementId));
+}
+
+export async function deleteAnnouncement(db: Db, announcementId: string) {
+	await db.delete(announcements).where(eq(announcements.id, announcementId));
+}
+
+// ---------- @提及（C3） ----------
+
+const MENTION_RE = /@([\u4e00-\u9fa5A-Za-z0-9_]{2,20})/g;
+
+/** 从文本中提取被 @ 的用户名（去重） */
+export function extractMentions(content: string): string[] {
+	const names = new Set<string>();
+	const m = content.match(MENTION_RE);
+	if (m) {
+		for (const t of m) names.add(t.slice(1));
+	}
+	return [...names];
+}
+
+/** 为文本中被 @ 的用户创建「被提及」通知（跳过自己）；返回通知到的用户名列表 */
+export async function notifyMentions(
+	db: Db,
+	content: string,
+	actorId: string,
+	refId: string
+): Promise<string[]> {
+	const names = extractMentions(content);
+	const notified: string[] = [];
+	for (const name of names) {
+		const target = await db.select().from(users).where(eq(users.username, name)).get();
+		if (!target || target.id === actorId) continue;
+		await createNotification(db, {
+			userId: target.id,
+			actorId,
+			type: 'mention',
+			content: `${name}，有人提到了你`,
+			refId
+		});
+		notified.push(name);
+	}
+	return notified;
 }

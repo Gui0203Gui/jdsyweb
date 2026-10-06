@@ -69,14 +69,14 @@ export const posts = sqliteTable(
 			.$defaultFn(() => new Date()),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 			.notNull()
-			.$defaultFn(() => new Date())
+			.$defaultFn(() => new Date()),
+		pollOptions: text('poll_options') // 投票选项 JSON 数组；NULL=普通帖
 	},
 	(table) => [
 		index('posts_forum_created_idx').on(table.forumId, table.createdAt),
 		index('posts_author_idx').on(table.authorId)
 	]
 );
-
 /** 回复表 */
 export const comments = sqliteTable(
 	'comments',
@@ -233,7 +233,7 @@ export const notifications = sqliteTable(
 			.references(() => users.id, { onDelete: 'cascade' }), // 接收者
 		actorId: text('actor_id').notNull().default(''), // 触发者（可为空：系统通知）
 		type: text('type', {
-			enum: ['reply', 'like', 'favorite', 'system']
+			enum: ['reply', 'like', 'favorite', 'system', 'mention', 'gift', 'follow']
 		}).notNull(),
 		content: text('content').notNull(), // 展示文本
 		refId: text('ref_id').notNull().default(''), // 关联对象 id（帖子/评论等）
@@ -364,6 +364,158 @@ export const graffitis = sqliteTable(
 	(table) => [index('graffitis_created_idx').on(table.createdAt)]
 );
 
+/** 投票帖记录（每帖每用户最多一票，匿名统计） */
+export const pollVotes = sqliteTable(
+	'poll_votes',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		postId: text('post_id')
+			.notNull()
+			.references(() => posts.id, { onDelete: 'cascade' }),
+		optionId: text('option_id').notNull(), // 选项序号 "0"/"1"...（对应 posts.poll_options 数组下标）
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [
+		uniqueIndex('poll_votes_post_user_idx').on(table.postId, table.userId),
+		index('poll_votes_post_idx').on(table.postId)
+	]
+);
+
+/** 关注关系 */
+export const follows = sqliteTable(
+	'follows',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		followerId: text('follower_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		followingId: text('following_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [
+		uniqueIndex('follows_pair_idx').on(table.followerId, table.followingId),
+		index('follows_follower_idx').on(table.followerId),
+		index('follows_following_idx').on(table.followingId)
+	]
+);
+
+/** 私信（站内信） */
+export const messages = sqliteTable(
+	'messages',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		senderId: text('sender_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		receiverId: text('receiver_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		content: text('content').notNull(),
+		isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [
+		index('messages_receiver_idx').on(table.receiverId, table.createdAt),
+		index('messages_sender_idx').on(table.senderId, table.createdAt)
+	]
+);
+
+/** 成就定义（预置种子） */
+export const achievements = sqliteTable(
+	'achievements',
+	{
+		id: text('id').primaryKey(),
+		key: text('key').notNull().unique(),
+		name: text('name').notNull(),
+		description: text('description').notNull(),
+		icon: text('icon').notNull().default('🏆')
+	},
+	(table) => [index('achievements_key_idx').on(table.key)]
+);
+
+/** 用户已获得的成就 */
+export const userAchievements = sqliteTable(
+	'user_achievements',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		achievementId: text('achievement_id')
+			.notNull()
+			.references(() => achievements.id, { onDelete: 'cascade' }),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [
+		uniqueIndex('user_achievements_pair_idx').on(table.userId, table.achievementId),
+		index('user_achievements_user_idx').on(table.userId)
+	]
+);
+
+/** 举报记录 */
+export const reports = sqliteTable(
+	'reports',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		reporterId: text('reporter_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		targetType: text('target_type', { enum: ['post', 'comment'] }).notNull(),
+		targetId: text('target_id').notNull(),
+		reason: text('reason').notNull(),
+		status: text('status', { enum: ['pending', 'resolved', 'dismissed'] })
+			.notNull()
+			.default('pending'),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [index('reports_status_idx').on(table.status, table.createdAt)]
+);
+
+/** 吧内公告 */
+export const announcements = sqliteTable(
+	'announcements',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		title: text('title').notNull(),
+		content: text('content').notNull(),
+		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+		createdBy: text('created_by')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [index('announcements_active_idx').on(table.isActive, table.createdAt)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Forum = typeof forums.$inferSelect;
 export type Post = typeof posts.$inferSelect;
@@ -380,6 +532,13 @@ export type TeacherLike = typeof teacherLikes.$inferSelect;
 export type Item = typeof items.$inferSelect;
 export type FestivalSignIn = typeof festivalSignIns.$inferSelect;
 export type Graffiti = typeof graffitis.$inferSelect;
+export type PollVote = typeof pollVotes.$inferSelect;
+export type Follow = typeof follows.$inferSelect;
+export type Message = typeof messages.$inferSelect;
+export type Achievement = typeof achievements.$inferSelect;
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type Report = typeof reports.$inferSelect;
+export type Announcement = typeof announcements.$inferSelect;
 
 /** 便捷：SQL 常量，用于软删除/时间等场景 */
 export const now = sql`(unixepoch() * 1000)`;
