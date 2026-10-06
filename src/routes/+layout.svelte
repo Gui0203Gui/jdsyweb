@@ -49,6 +49,7 @@
 				</form>
 				{#if data.user}
 					<a href="/works" class="btn btn-ghost btn-sm">🎨 作品集</a>
+					<a href="/games" class="btn btn-ghost btn-sm">⛏️ 交大工坊</a>
 					{#if data.user.signedToday}
 						<span class="btn btn-ghost btn-sm" title="今天已签到">✅ 已签到</span>
 					{:else}

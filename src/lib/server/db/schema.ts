@@ -1,5 +1,12 @@
 import { sql } from 'drizzle-orm';
-import { integer, sqliteTable, text, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+	integer,
+	sqliteTable,
+	text,
+	index,
+	uniqueIndex,
+	primaryKey
+} from 'drizzle-orm/sqlite-core';
 
 /** 用户表 */
 export const users = sqliteTable(
@@ -195,7 +202,7 @@ export const pointLogs = sqliteTable(
 			.references(() => users.id, { onDelete: 'cascade' }),
 		change: integer('change').notNull(), // 正负值
 		reason: text('reason', {
-			enum: ['post', 'comment', 'like', 'favorite', 'signin', 'work', 'shop']
+			enum: ['post', 'comment', 'like', 'favorite', 'signin', 'work', 'shop', 'game']
 		}).notNull(),
 		refId: text('ref_id').notNull().default(''), // 关联对象 id（帖子/评论/作品）
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -317,7 +324,7 @@ export const items = sqliteTable(
 			]
 		}).notNull(), // 道具类型：三种绝版花 / 称号【国庆快乐】/ 称号【程门立雪】/ 改名卡
 		source: text('source', {
-			enum: ['festival-signin', 'gift', 'shop', 'craft', 'admin']
+			enum: ['festival-signin', 'gift', 'shop', 'craft', 'admin', 'game']
 		}).notNull(), // 来源：国庆签到 / 好友赠送 / 商店购买 / 商店合成 / 管理员发放
 		equipped: integer('equipped', { mode: 'boolean' }).notNull().default(false), // 是否装备中（仅称号道具使用）
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -516,6 +523,99 @@ export const announcements = sqliteTable(
 	(table) => [index('announcements_active_idx').on(table.isActive, table.createdAt)]
 );
 
+/** 游戏地图（《交大工坊》） */
+export const gameMaps = sqliteTable('game_maps', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	name: text('name').notNull(),
+	ownerId: text('owner_id')
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' })
+		.notNull()
+		.$defaultFn(() => new Date()),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
+/** 地图格子建筑 */
+export const gameTiles = sqliteTable(
+	'game_tiles',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		mapId: text('map_id')
+			.notNull()
+			.references(() => gameMaps.id, { onDelete: 'cascade' }),
+		x: integer('x').notNull(),
+		y: integer('y').notNull(),
+		type: text('type').notNull(),
+		ownerId: text('owner_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [
+		uniqueIndex('game_tiles_map_xy_idx').on(table.mapId, table.x, table.y),
+		index('game_tiles_map_idx').on(table.mapId)
+	]
+);
+
+/** 玩家在地图上的个人资源 */
+export const gameResources = sqliteTable(
+	'game_resources',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		mapId: text('map_id')
+			.notNull()
+			.references(() => gameMaps.id, { onDelete: 'cascade' }),
+		resourceType: text('resource_type').notNull(),
+		amount: integer('amount').notNull().default(0)
+	},
+	(table) => [primaryKey({ columns: [table.userId, table.mapId, table.resourceType] })]
+);
+
+/** 地图内聊天 */
+export const gameChats = sqliteTable(
+	'game_chat',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		mapId: text('map_id')
+			.notNull()
+			.references(() => gameMaps.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		content: text('content').notNull(),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [index('game_chat_map_idx').on(table.mapId, table.createdAt)]
+);
+
+/** 游戏资源→积分每日兑换（防刷） */
+export const gameExchanges = sqliteTable(
+	'game_exchanges',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		date: text('date').notNull(),
+		points: integer('points').notNull().default(0)
+	},
+	(table) => [primaryKey({ columns: [table.userId, table.date] })]
+);
+
 export type User = typeof users.$inferSelect;
 export type Forum = typeof forums.$inferSelect;
 export type Post = typeof posts.$inferSelect;
@@ -539,6 +639,12 @@ export type Achievement = typeof achievements.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type Report = typeof reports.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
+
+export type GameMap = typeof gameMaps.$inferSelect;
+export type GameTile = typeof gameTiles.$inferSelect;
+export type GameResource = typeof gameResources.$inferSelect;
+export type GameChat = typeof gameChats.$inferSelect;
+export type GameExchange = typeof gameExchanges.$inferSelect;
 
 /** 便捷：SQL 常量，用于软删除/时间等场景 */
 export const now = sql`(unixepoch() * 1000)`;

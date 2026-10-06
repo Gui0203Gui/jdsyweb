@@ -22,7 +22,12 @@ import {
 	teachers,
 	userAchievements,
 	users,
-	works
+	works,
+	gameMaps,
+	gameTiles,
+	gameResources,
+	gameChats,
+	gameExchanges
 } from './db/schema';
 import { FLOWER_TYPES, type FlowerType } from '#lib/flowers';
 import { todayStr } from './points';
@@ -676,7 +681,7 @@ export async function addItem(
 	db: Db,
 	userId: string,
 	itemType: FlowerType,
-	source: 'festival-signin' | 'gift'
+	source: 'festival-signin' | 'gift' | 'game'
 ) {
 	await db.insert(items).values({ ownerId: userId, itemType, source });
 }
@@ -1527,4 +1532,310 @@ export async function notifyMentions(
 		notified.push(name);
 	}
 	return notified;
+}
+
+// ---------- 游戏《交大工坊》 ----------
+
+export const GAME_MAP_SIZE = 40; // 地图 40x40 网格
+export const GAME_BUILDINGS = {
+	miner: {
+		name: '⛏️ 矿机',
+		color: '#8d7b5f',
+		resource: 'iron',
+		icon: '⛏',
+		desc: '产出铁矿石',
+		cost: 0
+	},
+	lumber: {
+		name: '🪚 伐木场',
+		color: '#7a5c33',
+		resource: 'wood',
+		icon: '🪚',
+		desc: '产出木材',
+		cost: 0
+	},
+	farm: {
+		name: '🌾 农田',
+		color: '#c9a227',
+		resource: 'wheat',
+		icon: '🌾',
+		desc: '产出小麦',
+		cost: 0
+	},
+	flower: {
+		name: '🌸 花田',
+		color: '#e05f9e',
+		resource: 'flower',
+		icon: '🌸',
+		desc: '产出花朵点',
+		cost: 0
+	},
+	lantern: {
+		name: '🏯 路灯',
+		color: '#d97706',
+		resource: null,
+		icon: '🏯',
+		desc: '装饰物，无产出',
+		cost: 0
+	},
+	campfire: {
+		name: '🔥 炯火',
+		color: '#ea580c',
+		resource: null,
+		icon: '🔥',
+		desc: '装饰物，无产出',
+		cost: 0
+	}
+} as const;
+export type GameBuildingType = keyof typeof GAME_BUILDINGS;
+
+// 收集产出：每类产出建筑一次收集产出数量
+export const GAME_COLLECT_RATES: Record<string, number> = {
+	miner: 2,
+	lumber: 2,
+	farm: 2,
+	flower: 1
+};
+
+// 兑换率：花资源换花朵；铁/木/麦换积分（10 资源 -> 1 积分）
+export const GAME_EXCHANGE_POINTS_PER = 10; // 每 10 点资源换 1 积分
+export const GAME_DAILY_POINT_CAP = 100; // 每日最多通过资源兑换获得积分
+export const GAME_FLOWER_RATE = 5; // 5 点花资源 -> 1 朵花
+
+export async function createGameMap(db: Db, name: string, ownerId: string): Promise<string> {
+	const id = crypto.randomUUID();
+	await db.insert(gameMaps).values({ id, name, ownerId });
+	return id;
+}
+
+export async function listGameMaps(db: Db, limit = 20) {
+	return db
+		.select({
+			map: gameMaps,
+			ownerName: users.username,
+			tileCount: sql<number>`(select count(*) from game_tiles t where t.map_id = ${gameMaps.id})`
+		})
+		.from(gameMaps)
+		.innerJoin(users, eq(users.id, gameMaps.ownerId))
+		.orderBy(desc(gameMaps.updatedAt))
+		.limit(limit);
+}
+
+export async function getGameMap(db: Db, mapId: string) {
+	const rows = await db
+		.select({ map: gameMaps, ownerName: users.username })
+		.from(gameMaps)
+		.innerJoin(users, eq(users.id, gameMaps.ownerId))
+		.where(eq(gameMaps.id, mapId))
+		.limit(1);
+	return rows[0] ?? null;
+}
+
+export async function touchGameMap(db: Db, mapId: string) {
+	await db.update(gameMaps).set({ updatedAt: new Date() }).where(eq(gameMaps.id, mapId));
+}
+
+export async function listGameTiles(db: Db, mapId: string) {
+	return db.select().from(gameTiles).where(eq(gameTiles.mapId, mapId));
+}
+
+export async function placeGameTile(
+	db: Db,
+	mapId: string,
+	x: number,
+	y: number,
+	type: string,
+	ownerId: string
+): Promise<{ ok: boolean; error?: string }> {
+	if (x < 0 || y < 0 || x >= GAME_MAP_SIZE || y >= GAME_MAP_SIZE) {
+		return { ok: false, error: '坐标超出地图范围' };
+	}
+	if (!(type in GAME_BUILDINGS)) return { ok: false, error: '无效建筑类型' };
+	const exist = await db
+		.select({ id: gameTiles.id })
+		.from(gameTiles)
+		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.x, x), eq(gameTiles.y, y)))
+		.limit(1);
+	if (exist.length > 0) return { ok: false, error: '该格子已有建筑' };
+	await db.insert(gameTiles).values({
+		mapId,
+		x,
+		y,
+		type,
+		ownerId,
+		createdAt: new Date()
+	});
+	await touchGameMap(db, mapId);
+	return { ok: true };
+}
+
+export async function removeGameTile(
+	db: Db,
+	mapId: string,
+	x: number,
+	y: number,
+	ownerId: string
+): Promise<{ ok: boolean; error?: string }> {
+	const rows = await db
+		.select({ id: gameTiles.id, ownerId: gameTiles.ownerId })
+		.from(gameTiles)
+		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.x, x), eq(gameTiles.y, y)))
+		.limit(1);
+	if (rows.length === 0) return { ok: false, error: '该处无建筑' };
+	if (rows[0].ownerId !== ownerId) return { ok: false, error: '只能拆除自己的建筑' };
+	await db.delete(gameTiles).where(eq(gameTiles.id, rows[0].id));
+	await touchGameMap(db, mapId);
+	return { ok: true };
+}
+
+export async function listGameResources(db: Db, userId: string, mapId: string) {
+	const rows = await db
+		.select()
+		.from(gameResources)
+		.where(and(eq(gameResources.userId, userId), eq(gameResources.mapId, mapId)));
+	const map: Record<string, number> = { iron: 0, wood: 0, wheat: 0, flower: 0 };
+	for (const r of rows) map[r.resourceType] = r.amount;
+	return map;
+}
+
+export async function addGameResource(
+	db: Db,
+	userId: string,
+	mapId: string,
+	resourceType: string,
+	amount: number
+) {
+	await db
+		.insert(gameResources)
+		.values({ userId, mapId, resourceType, amount })
+		.onConflictDoUpdate({
+			target: [gameResources.userId, gameResources.mapId, gameResources.resourceType],
+			set: { amount: sql`${gameResources.amount} + ${amount}` }
+		});
+}
+
+/** 收集玩家在该地图上的全部产出建筑资源 */
+export async function collectGameResources(
+	db: Db,
+	mapId: string,
+	userId: string
+): Promise<Record<string, number>> {
+	const tiles = await db
+		.select({ type: gameTiles.type })
+		.from(gameTiles)
+		.where(and(eq(gameTiles.mapId, mapId), eq(gameTiles.ownerId, userId)));
+	const gained: Record<string, number> = {};
+	for (const t of tiles) {
+		const rate = GAME_COLLECT_RATES[t.type];
+		if (rate && t.type in GAME_BUILDINGS) {
+			const rtype = GAME_BUILDINGS[t.type as GameBuildingType].resource;
+			if (!rtype) continue;
+			gained[rtype] = (gained[rtype] ?? 0) + rate;
+		}
+	}
+	for (const [rtype, amount] of Object.entries(gained)) {
+		await addGameResource(db, userId, mapId, rtype, amount);
+	}
+	return gained;
+}
+
+export async function addGameChat(db: Db, mapId: string, userId: string, content: string) {
+	if (!content.trim()) return;
+	await db.insert(gameChats).values({ mapId, userId, content: content.slice(0, 100) });
+}
+
+export async function listGameChat(db: Db, mapId: string, limit = 50) {
+	return db
+		.select({ chat: gameChats, username: users.username })
+		.from(gameChats)
+		.innerJoin(users, eq(users.id, gameChats.userId))
+		.where(eq(gameChats.mapId, mapId))
+		.orderBy(desc(gameChats.createdAt))
+		.limit(limit);
+}
+
+export async function getGameExchangePoints(db: Db, userId: string, date: string): Promise<number> {
+	const rows = await db
+		.select({ points: gameExchanges.points })
+		.from(gameExchanges)
+		.where(and(eq(gameExchanges.userId, userId), eq(gameExchanges.date, date)))
+		.limit(1);
+	return rows[0]?.points ?? 0;
+}
+
+export async function addGameExchangePoints(db: Db, userId: string, date: string, points: number) {
+	await db
+		.insert(gameExchanges)
+		.values({ userId, date, points })
+		.onConflictDoUpdate({
+			target: [gameExchanges.userId, gameExchanges.date],
+			set: { points: sql`${gameExchanges.points} + ${points}` }
+		});
+}
+
+/** 资源兑换积分：每日上限 GAME_DAILY_POINT_CAP */
+export async function exchangeGameResourcesToPoints(
+	db: Db,
+	userId: string,
+	mapId: string,
+	resourceType: 'iron' | 'wood' | 'wheat'
+): Promise<{ ok: boolean; gained?: number; error?: string }> {
+	const res = await listGameResources(db, userId, mapId);
+	const available = res[resourceType] ?? 0;
+	if (available < GAME_EXCHANGE_POINTS_PER) {
+		return { ok: false, error: '资源不足' };
+	}
+	const today = todayStr();
+	const used = await getGameExchangePoints(db, userId, today);
+	const room = GAME_DAILY_POINT_CAP - used;
+	if (room <= 0) return { ok: false, error: '今日兑换已达上限' };
+	const points = Math.min(Math.floor(available / GAME_EXCHANGE_POINTS_PER), room);
+	const consume = points * GAME_EXCHANGE_POINTS_PER;
+	await db
+		.update(gameResources)
+		.set({ amount: sql`${gameResources.amount} - ${consume}` })
+		.where(
+			and(
+				eq(gameResources.userId, userId),
+				eq(gameResources.mapId, mapId),
+				eq(gameResources.resourceType, resourceType)
+			)
+		);
+	await addGameExchangePoints(db, userId, today, points);
+	// 直接加积分（数量可变，不走固定规则 awardPoints）
+	await db
+		.update(users)
+		.set({ points: sql`${users.points} + ${points}` })
+		.where(eq(users.id, userId));
+	await db.insert(pointLogs).values({ userId, change: points, reason: 'game', refId: mapId });
+	return { ok: true, gained: points };
+}
+
+/** 花资源兑换花朵进背包 */
+export async function exchangeGameFlower(
+	db: Db,
+	userId: string,
+	mapId: string
+): Promise<{ ok: boolean; error?: string; flower?: string }> {
+	const res = await listGameResources(db, userId, mapId);
+	const available = res['flower'] ?? 0;
+	if (available < GAME_FLOWER_RATE) return { ok: false, error: '花资源不足' };
+	const count = Math.floor(available / GAME_FLOWER_RATE);
+	const consume = count * GAME_FLOWER_RATE;
+	await db
+		.update(gameResources)
+		.set({ amount: sql`${gameResources.amount} - ${consume}` })
+		.where(
+			and(
+				eq(gameResources.userId, userId),
+				eq(gameResources.mapId, mapId),
+				eq(gameResources.resourceType, 'flower')
+			)
+		);
+	const flowerTypes = Object.keys(FLOWER_TYPES) as FlowerType[];
+	const flower = flowerTypes[Math.floor(Math.random() * flowerTypes.length)];
+	for (let i = 0; i < count; i++) {
+		await addItem(db, userId, flower, 'game');
+	}
+	return { ok: true, flower };
 }
