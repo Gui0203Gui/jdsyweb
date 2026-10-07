@@ -50,6 +50,17 @@
 	} as const;
 	type ArmyKey = keyof typeof ARMIES;
 
+	// 兵场像素贴图（canvas 上 emoji 渲染不稳定，改用贴图绘制）
+	const ARMY_IMGS: Record<string, HTMLImageElement> = {};
+	if (typeof window !== 'undefined') {
+		for (const k of Object.keys(ARMIES)) {
+			const img = new Image();
+			img.src = `/game/${k}.png`;
+			img.onload = () => draw();
+			ARMY_IMGS[k] = img;
+		}
+	}
+
 	let tiles = $state<
 		{ x: number; y: number; type: string; ownerId: string; power: number; lastCollectAt: number }[]
 	>(data.tiles);
@@ -117,11 +128,16 @@
 			const py = (t.y - camY) * CELL;
 			ctx.fillStyle = b.color;
 			ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
-			ctx.fillStyle = 'rgba(255,255,255,.92)';
-			ctx.font = `bold ${Math.floor(CELL * 0.6)}px sans-serif`;
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.fillText(b.icon, px + CELL / 2, py + CELL / 2 + 2);
+			const aimg = ARMY_IMGS[t.type];
+			if (aimg && aimg.complete && aimg.naturalWidth > 0) {
+				ctx.drawImage(aimg, px + 2, py + 2, CELL - 4, CELL - 4);
+			} else {
+				ctx.fillStyle = 'rgba(255,255,255,.92)';
+				ctx.font = `bold ${Math.floor(CELL * 0.6)}px sans-serif`;
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.fillText(b.icon, px + CELL / 2, py + CELL / 2 + 2);
+			}
 			// 兵场兵力角标
 			if (t.power > 0) {
 				ctx.fillStyle = 'rgba(0,0,0,.72)';
@@ -486,7 +502,13 @@
 								class="build {selected === key ? 'on' : ''}"
 								onclick={() => (selected = key as BuildKey)}
 							>
-								<span class="bi">{a.icon}</span>
+								<span class="bi"
+									><img
+										src={`/game/${key}.png`}
+										alt={a.name}
+										style="width:22px;height:22px;image-rendering:pixelated;"
+									/></span
+								>
 								<span class="bn">{a.name}</span>
 								<span class="bd">{a.desc} · ⭐{a.cost}</span>
 							</button>
