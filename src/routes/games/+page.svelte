@@ -123,10 +123,11 @@
 		for (const t of tiles) {
 			if (t.x < x0 || t.x >= x1 || t.y < y0 || t.y >= y1) continue;
 			const b = BUILDS[t.type as BuildKey];
-			if (!b) continue;
+			const a = ARMIES[t.type as ArmyKey];
+			if (!b && !a) continue;
 			const px = (t.x - camX) * CELL;
 			const py = (t.y - camY) * CELL;
-			ctx.fillStyle = b.color;
+			ctx.fillStyle = b?.color ?? a?.color;
 			ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
 			const aimg = ARMY_IMGS[t.type];
 			if (aimg && aimg.complete && aimg.naturalWidth > 0) {
@@ -136,7 +137,7 @@
 				ctx.font = `bold ${Math.floor(CELL * 0.6)}px sans-serif`;
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
-				ctx.fillText(b.icon, px + CELL / 2, py + CELL / 2 + 2);
+				ctx.fillText(b?.icon ?? a?.icon ?? '', px + CELL / 2, py + CELL / 2 + 2);
 			}
 			// 兵场兵力角标
 			if (t.power > 0) {
@@ -502,13 +503,7 @@
 								class="build {selected === key ? 'on' : ''}"
 								onclick={() => (selected = key as BuildKey)}
 							>
-								<span class="bi"
-									><img
-										src={`/game/${key}.png`}
-										alt={a.name}
-										style="width:22px;height:22px;image-rendering:pixelated;"
-									/></span
-								>
+								<span class="bi">{a.icon}</span>
 								<span class="bn">{a.name}</span>
 								<span class="bd">{a.desc} · ⭐{a.cost}</span>
 							</button>
