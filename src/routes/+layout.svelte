@@ -28,6 +28,9 @@
 		theme = theme === 'dark' ? 'light' : 'dark';
 		localStorage.setItem('jdsy_theme', theme);
 	}
+
+	// 移动端菜单开关
+	let menuOpen = $state(false);
 </script>
 
 <svelte:head>
@@ -43,7 +46,7 @@
 				<span class="brand-tag">民间贴吧</span>
 			</a>
 
-			<div class="topbar-actions">
+			<div class="topbar-actions" class:open={menuOpen}>
 				<form action="/search" method="get" class="search-form">
 					<input type="search" name="q" placeholder="搜索帖子…" class="search-input" />
 				</form>
@@ -115,6 +118,15 @@
 					<a href="/register" class="btn btn-primary btn-sm">注册</a>
 				{/if}
 			</div>
+
+			<button
+				type="button"
+				class="menu-btn"
+				onclick={() => (menuOpen = !menuOpen)}
+				aria-label="菜单"
+			>
+				{menuOpen ? '✕' : '☰'}
+			</button>
 		</div>
 	</header>
 

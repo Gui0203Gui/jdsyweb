@@ -1572,3 +1572,133 @@ a:hover {
 [data-theme='dark'] .chat-msg.mine .chat-msg-content {
 	background: var(--primary);
 }
+
+/* ========== 移动端适配（≤720px） ========== */
+.menu-btn {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 38px;
+	height: 38px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	border-radius: 8px;
+	font-size: 18px;
+	color: var(--text);
+	cursor: pointer;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+	/* 顶栏：单行 + 汉堡菜单 */
+	.topbar-inner {
+		flex-wrap: nowrap;
+		gap: 8px;
+		padding: 8px 12px;
+	}
+	.brand-tag {
+		display: none;
+	}
+	.brand-name {
+		font-size: 16px;
+	}
+	.menu-btn {
+		display: inline-flex;
+	}
+	.search-form {
+		flex: 1;
+		min-width: 0;
+	}
+	.search-input {
+		width: 100%;
+		max-width: 100%;
+	}
+
+	/* 展开面板（相对 .topbar 定位的下拉） */
+	.topbar-actions {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		right: 0;
+		background: var(--surface);
+		border-bottom: 1px solid var(--border);
+		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+		flex-direction: column;
+		align-items: stretch;
+		padding: 12px 14px 16px;
+		gap: 8px;
+		display: none;
+		max-height: calc(100vh - 64px);
+		overflow-y: auto;
+		z-index: 99;
+	}
+	.topbar-actions.open {
+		display: flex;
+	}
+	.topbar-actions .search-form {
+		margin-bottom: 6px;
+	}
+	.topbar-actions .btn,
+	.topbar-actions .user-chip,
+	.topbar-actions .bell-link {
+		width: 100%;
+		justify-content: center;
+		box-sizing: border-box;
+	}
+
+	/* 主容器 */
+	.main {
+		padding: 16px 12px 40px;
+	}
+	.page-title {
+		font-size: 20px;
+	}
+
+	/* 首页头部按钮组：横向滑动不换行 */
+	.flex-between {
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+	.flex-between > .flex {
+		overflow-x: auto;
+		flex-wrap: nowrap;
+		-webkit-overflow-scrolling: touch;
+		padding-bottom: 4px;
+		max-width: 100%;
+	}
+
+	/* 板块 / 作品网格降列 */
+	.forum-grid {
+		grid-template-columns: repeat(2, 1fr);
+		gap: 8px;
+	}
+	.works-grid {
+		grid-template-columns: repeat(2, 1fr);
+		gap: 8px;
+	}
+	.forum-card-desc {
+		-webkit-line-clamp: 2;
+	}
+
+	/* 帖子列表 */
+	.post-item {
+		padding: 12px 14px;
+	}
+	.post-title {
+		font-size: 15px;
+	}
+	.post-meta {
+		flex-wrap: wrap;
+		gap: 4px 10px;
+		font-size: 12px;
+	}
+
+	/* 表格横向滚动（管理后台 / 排行榜等） */
+	.card:has(> table) {
+		overflow-x: auto;
+	}
+	.card > table {
+		min-width: 640px;
+	}
+}
